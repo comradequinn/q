@@ -114,6 +114,8 @@ func main() {
 		printfFatal("unable to read history. %v", err)
 	}
 
+	llmDone, spinnerDone := cli.Spin()
+
 	rs, err := llm.Generate(
 		llm.Config{
 			APIKey:        config.Credentials.APIKey,
@@ -146,6 +148,9 @@ func main() {
 	}); err != nil {
 		printfFatal("unable to update session. %v", err)
 	}
+
+	llmDone <- struct{}{}
+	<-spinnerDone
 
 	fmt.Printf("%v\n", rs.Text)
 }
