@@ -21,7 +21,7 @@ func Spin() (chan struct{}, chan struct{}) {
 		for {
 			select {
 			case <-taskDone:
-				writer("\r")
+				writer("\r \n")
 				spinDone <- struct{}{}
 				return
 			default:

@@ -9,7 +9,7 @@ To install `q`, download the appropriate tarball for your OS from the [releases]
 Optionally, you can use the below script to do that for you.
 
 ```bash
-export VERSION="v1.0.2"; export OS="linux-amd64"; wget "https://github.com/comradequinn/q/releases/download/${VERSION}/q-${VERSION}-${OS}.tar.gz" && tar -xf "q-${VERSION}-${OS}.tar.gz" && rm -f "q-${VERSION}-${OS}.tar.gz" && chmod +x q && sudo cp q /usr/bin/
+export VERSION="v1.0.3"; export OS="linux-amd64"; wget "https://github.com/comradequinn/q/releases/download/${VERSION}/q-${VERSION}-${OS}.tar.gz" && tar -xf "q-${VERSION}-${OS}.tar.gz" && rm -f "q-${VERSION}-${OS}.tar.gz" && chmod +x q && sudo cp q /usr/bin/
 ```
 
 ### Removal
