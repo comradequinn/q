@@ -49,8 +49,8 @@ type (
 const (
 	RoleUser         = "user"
 	RoleModel        = "model"
-	ModelGeminiPro   = "gemini-2.5-pro-exp-03-25"
-	ModelGeminiFlash = "gemini-2.0-flash-001"
+	ModelGeminiPro   = "gemini-2.5-pro-preview-03-25"
+	ModelGeminiFlash = "gemini-2.5-flash-preview-04-17"
 )
 
 var (

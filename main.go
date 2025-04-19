@@ -31,7 +31,7 @@ func main() {
 	debug := flag.Bool("debug", false, "enable debug output")
 	appDir := flag.String("app-dir", path.Join(homeDir, "."+app), fmt.Sprintf("location of the %v app (directory", app))
 	configure := flag.Bool("config", false, "reset or initialise the configuration")
-	model := flag.String("model", llm.ModelGeminiFlash, "the model to use")
+	model := flag.String("model", llm.ModelGeminiPro, "the model to use")
 	tokens := flag.Int("tokens", 10000, "the maximum number of tokens to allow in a response")
 	temperature := flag.Float64("temp", 0.1, "the temperature setting for the model")
 	newSession := flag.Bool("new", false, "save any existing session and start a new one (also -n)")
