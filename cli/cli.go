@@ -12,7 +12,7 @@ var (
 	writer  = fmt.Printf
 )
 
-func Spin() (chan struct{}, chan struct{}) {
+func Spin() (stopFunc func()) {
 	taskDone, spinDone := make(chan struct{}), make(chan struct{})
 
 	go func() {
@@ -32,5 +32,8 @@ func Spin() (chan struct{}, chan struct{}) {
 		}
 	}()
 
-	return taskDone, spinDone
+	return func() {
+		taskDone <- struct{}{}
+		<-spinDone
+	}
 }

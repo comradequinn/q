@@ -27,6 +27,7 @@ func main() {
 	homeDir, _ := os.UserHomeDir()
 
 	version := flag.Bool("version", false, "print the version")
+	script := flag.Bool("script", false, "supress activity indicators, such as spinners, to better support piping stdout into other utils when scripting")
 	versionShort := flag.Bool("v", false, "print the version")
 	debug := flag.Bool("debug", false, "enable debug output")
 	appDir := flag.String("app-dir", path.Join(homeDir, "."+app), fmt.Sprintf("location of the %v app (directory", app))
@@ -114,7 +115,10 @@ func main() {
 		printfFatal("unable to read history. %v", err)
 	}
 
-	llmDone, spinnerDone := cli.Spin()
+	var stopSpinner = func() {}
+	if !*script {
+		stopSpinner = cli.Spin()
+	}
 
 	rs, err := llm.Generate(
 		llm.Config{
@@ -149,8 +153,7 @@ func main() {
 		printfFatal("unable to update session. %v", err)
 	}
 
-	llmDone <- struct{}{}
-	<-spinnerDone
+	stopSpinner()
 
 	fmt.Printf("%v\n", rs.Text)
 }
