@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path"
 
@@ -29,12 +30,15 @@ func main() {
 	version := flag.Bool("version", false, "print the version")
 	script := flag.Bool("script", false, "supress activity indicators, such as spinners, to better support piping stdout into other utils when scripting")
 	versionShort := flag.Bool("v", false, "print the version")
+	grounding := flag.Bool("grounding", true, "enable grounding with search")
+	schema := flag.String("schema", "", "the json schema that defines the required response format. grounding with search must be disabled to use a response schema")
 	debug := flag.Bool("debug", false, "enable debug output")
 	appDir := flag.String("app-dir", path.Join(homeDir, "."+app), fmt.Sprintf("location of the %v app (directory", app))
 	configure := flag.Bool("config", false, "reset or initialise the configuration")
 	model := flag.String("model", llm.ModelGeminiPro, "the model to use")
-	tokens := flag.Int("tokens", 10000, "the maximum number of tokens to allow in a response")
-	temperature := flag.Float64("temp", 0.1, "the temperature setting for the model")
+	maxTokens := flag.Int("max-tokens", 0, "the maximum number of tokens to allow in a response. when unset, or set to zero, the value from the config file is used")
+	temperature := flag.Float64("temperature", -1, "the temperature setting for the model. when unset, or set to a value less than zero, the value from the config file is used")
+	topP := flag.Float64("top-p", -1, "the top-p setting for the model. when unset, or set to a value less than zero, the value from the config file is used")
 	newSession := flag.Bool("new", false, "save any existing session and start a new one (also -n)")
 	newSessionShort := flag.Bool("n", false, "save any existing session and start a new one (also --new)")
 	listSessions := flag.Bool("list", false, "list all saved sessions by id (also -l)")
@@ -42,6 +46,7 @@ func main() {
 	restoreSession := flag.Int("restore", 0, "the session id to restore (also -r)")
 	restoreSessionShort := flag.Int("r", 0, "the session id to restore (also --restore)")
 	deleteSession := flag.Int("delete", 0, "the session id to delete")
+	deleteSessionShort := flag.Int("d", 0, "the session id to delete")
 	deleteAllSessions := flag.Bool("delete-all", false, "delete all session data")
 	apiURL := flag.String("url", "https://generativelanguage.googleapis.com/v1beta/models/%v:generateContent?key=%v", "the url for the gemini api. it must expose two placeholders; one for the model and a second for the api key")
 	systemPrompt := flag.String("system-prompt", "Your responses are printed to a linux terminal. You will ensure those responses are concise and easily rendered in a linux terminal. "+
@@ -86,8 +91,9 @@ func main() {
 			printfFatal("unable to restore session. %v", err)
 		}
 		os.Exit(0)
-	case *deleteSession > 0:
-		if err := session.Delete(*appDir, *deleteSession); err != nil {
+	case *deleteSession > 0 || *deleteSessionShort > 0:
+		sessionID := *deleteSession + *deleteSessionShort
+		if err := session.Delete(*appDir, sessionID); err != nil {
 			printfFatal("unable to delete session. %v", err)
 		}
 		os.Exit(0)
@@ -120,26 +126,34 @@ func main() {
 		stopSpinner = cli.Spin()
 	}
 
+	useTemperature := math.Max(*temperature, config.Preferences.Temperature)
+	useTopP := math.Max(*topP, config.Preferences.TopP)
+	useTokens := *maxTokens
+	if useTokens == 0 {
+		useTokens = config.Preferences.MaxTokens
+	}
+
 	rs, err := llm.Generate(
 		llm.Config{
 			APIKey:        config.Credentials.APIKey,
 			APIURL:        *apiURL,
 			SystemPrompt:  *systemPrompt,
 			ResponseStyle: config.Preferences.ResponseStyle,
+			Model:         llm.Model(*model),
+			MaxTokens:     useTokens,
+			Temperature:   useTemperature,
+			TopP:          useTopP,
 			User: llm.User{
-				Name:       config.User.Name,
-				Location:   config.User.Location,
-				Sex:        config.User.Sex,
-				Age:        config.User.Age,
-				Occupation: config.User.Occupation,
+				Name:        config.User.Name,
+				Location:    config.User.Location,
+				Description: config.User.Description,
 			},
 		},
 		llm.Prompt{
-			Model:       llm.Model(*model),
-			MaxTokens:   *tokens,
-			Temperature: *temperature,
-			Text:        prompt,
-			History:     messages,
+			Text:      prompt,
+			History:   messages,
+			Schema:    *schema,
+			Grounding: *grounding,
 		})
 
 	if err != nil {

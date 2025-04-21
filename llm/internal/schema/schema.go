@@ -1,5 +1,7 @@
 package schema
 
+import "encoding/json"
+
 const (
 	FinishReasonStop = "STOP"
 )
@@ -19,8 +21,11 @@ type (
 		GoogleSearch *GoogleSearch `json:"googleSearch,omitempty"`
 	}
 	GenerationConfig struct {
-		Temperature     float64 `json:"temperature"`
-		MaxOutputTokens int     `json:"maxOutputTokens"`
+		Temperature      float64         `json:"temperature"`
+		TopP             float64         `json:"topP"`
+		MaxOutputTokens  int             `json:"maxOutputTokens"`
+		ResponseMimeType string          `json:"responseMimeType,omitempty"`
+		ResponseSchema   json.RawMessage `json:"responseSchema,omitempty"`
 	}
 )
 

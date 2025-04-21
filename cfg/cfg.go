@@ -19,14 +19,15 @@ type (
 		APIKey string `json:"apiKey"`
 	}
 	User struct {
-		Location   string `json:"location"`
-		Name       string `json:"name"`
-		Occupation string `json:"occupation"`
-		Age        string `json:"age"`
-		Sex        string `json:"sex"`
+		Location    string `json:"location"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
 	}
 	Preferences struct {
-		ResponseStyle string `json:"responseStyle"`
+		ResponseStyle string  `json:"responseStyle"`
+		Temperature   float64 `json:"temperature"`
+		TopP          float64 `json:"topP"`
+		MaxTokens     int     `json:"maxTokens"`
 	}
 	Conversation []Message
 	Message      struct {
@@ -80,10 +81,10 @@ func Save(cfg Config, appDir string) error {
 
 	buffer := bytes.Buffer{}
 
-	enc := json.NewEncoder(&buffer)
-	enc.SetIndent("", "  ")
+	jsonEncoder := json.NewEncoder(&buffer)
+	jsonEncoder.SetIndent("", "  ")
 
-	if err := enc.Encode(&cfg); err != nil {
+	if err := jsonEncoder.Encode(&cfg); err != nil {
 		return fmt.Errorf("unable to encode config file %s: %w", appDir, err)
 	}
 

@@ -16,7 +16,10 @@ example: build
 	@${BIN}/${NAME} -n ${PROMPT_1}
 	@${BIN}/${NAME} ${PROMPT_2}
 	@${BIN}/${NAME} ${PROMPT_3}
-	
+
+example-structured: build
+	@${BIN}/${NAME} -n --grounding=false --script --schema='{"type":"object","properties":{"response":{"type":"string"}}}' "pick a colour of the rainbow"
+
 config: build
 	@${BIN}/${NAME} --config
 

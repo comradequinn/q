@@ -17,22 +17,22 @@ type (
 		APIURL        string
 		SystemPrompt  string
 		ResponseStyle string
+		Model         Model
+		MaxTokens     int
+		Temperature   float64
+		TopP          float64
 		User          User
 	}
 	User struct {
-		Name       string
-		Location   string
-		Family     string
-		Occupation string
-		Age        string
-		Sex        string
+		Name        string
+		Location    string
+		Description string
 	}
 	Prompt struct {
-		Model       Model
-		MaxTokens   int
-		Temperature float64
-		History     []Message
-		Text        string
+		History   []Message
+		Text      string
+		Schema    string
+		Grounding bool
 	}
 	Response struct {
 		Tokens int
@@ -59,12 +59,16 @@ var (
 
 // Generate queries the configured LLM with the specified prompt and returns the result
 func Generate(cfg Config, prompt Prompt) (Response, error) {
-	if prompt.Model == "" || prompt.MaxTokens == 0 || prompt.Temperature == 0 {
+	if cfg.Model == "" || cfg.MaxTokens == 0 || cfg.Temperature == 0 {
 		return Response{}, fmt.Errorf("invalid prompt. model, maxtokens and temperature must be specified")
 	}
 
+	if prompt.Grounding && prompt.Schema != "" {
+		return Response{}, fmt.Errorf("invalid prompt. cannot use grounding with a response schema")
+	}
+
 	systemPrompt := strings.Builder{}
-	systemPrompt.WriteString(cfg.SystemPrompt)
+	systemPrompt.WriteString(cfg.SystemPrompt + ". ")
 	systemPrompt.WriteString(`Your responses are printed to a linux terminal. 
 		You will ensure those responses are concise and easily rendered in a linux terminal.
 		You will not use markdown syntax in your responses as this is not rendered well in terminal output. 
@@ -73,22 +77,19 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		You should only answer the specific question given; do not proactively include additional information that is not directly relevant to the question. 
 		`)
 
-	systemPrompt.WriteString(fmt.Sprintf("Your responses must not exceed %v words in length. ", float64(prompt.MaxTokens)*0.75)) // rough mapping of tokens to words
+	systemPrompt.WriteString(fmt.Sprintf("Your responses must not exceed %v words in length. ", float64(cfg.MaxTokens)*0.75)) // rough mapping of tokens to words
 
 	defineAttribute := func(key string, val any, unset any) string {
 		if val == unset {
 			return ""
 		}
-		return fmt.Sprintf("Consider in your responses, where it may be relevant, that the user has provided this information regarding their %v: %v", key, val) + ". "
+		return fmt.Sprintf("Consider in your responses, where it may be relevant, that the user has provided this information regarding their %v: %q", key, val) + ". "
 	}
 
 	systemPrompt.WriteString(defineAttribute("location", cfg.User.Location, ""))
 	systemPrompt.WriteString(defineAttribute("name", cfg.User.Name, ""))
-	systemPrompt.WriteString(defineAttribute("family", cfg.User.Family, ""))
-	systemPrompt.WriteString(defineAttribute("occupation", cfg.User.Occupation, ""))
-	systemPrompt.WriteString(defineAttribute("age", cfg.User.Age, 0))
-	systemPrompt.WriteString(defineAttribute("sex", cfg.User.Sex, ""))
-	systemPrompt.WriteString(defineAttribute("preferred response style; note that this refines your output. It does not override any previous instruction where there is a contradiction", cfg.ResponseStyle, ""))
+	systemPrompt.WriteString(defineAttribute("description", cfg.User.Description, ""))
+	systemPrompt.WriteString(defineAttribute("preferred response style; note that this only refines your output and does not override any previous instruction where there is a contradiction", cfg.ResponseStyle, ""))
 
 	content := make([]schema.Content, 0, len(prompt.History)+1)
 
@@ -108,24 +109,40 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		},
 	})
 
+	tools := []schema.Tool{}
+
+	if prompt.Grounding {
+		tools = []schema.Tool{
+			{GoogleSearch: &schema.GoogleSearch{}},
+		}
+	}
+
+	generationConfig := schema.GenerationConfig{
+		Temperature:     cfg.Temperature,
+		TopP:            cfg.TopP,
+		MaxOutputTokens: cfg.MaxTokens,
+	}
+
+	if prompt.Schema != "" {
+		generationConfig.ResponseMimeType = "application/json"
+		generationConfig.ResponseSchema = json.RawMessage(prompt.Schema)
+	}
+
 	request := bytes.Buffer{}
-	json.NewEncoder(&request).Encode(schema.Request{
+	if err := json.NewEncoder(&request).Encode(schema.Request{
 		SystemInstruction: schema.SystemInstruction{
 			Parts: []schema.Part{{Text: systemPrompt.String()}},
 		},
-		Contents: content,
-		Tools: []schema.Tool{
-			{GoogleSearch: &schema.GoogleSearch{}},
-		},
-		GenerationConfig: schema.GenerationConfig{
-			Temperature:     prompt.Temperature,
-			MaxOutputTokens: prompt.MaxTokens,
-		},
-	})
+		Contents:         content,
+		Tools:            tools,
+		GenerationConfig: generationConfig,
+	}); err != nil {
+		return Response{}, fmt.Errorf("unable to encode llm request as json. %v", err)
+	}
 
 	LogPrintf("request=%q", request.Bytes())
 
-	rs, err := http.Post(fmt.Sprintf(cfg.APIURL, prompt.Model, cfg.APIKey), "application/json", &request)
+	rs, err := http.Post(fmt.Sprintf(cfg.APIURL, cfg.Model, cfg.APIKey), "application/json", &request)
 
 	if err != nil {
 		return Response{}, fmt.Errorf("unable to send request to llm api. %v", err)

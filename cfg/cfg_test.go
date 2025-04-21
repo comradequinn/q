@@ -23,11 +23,9 @@ func TestConfig(t *testing.T) {
 			APIKey: "test-api-key",
 		},
 		User: cfg.User{
-			Location:   "test-location",
-			Name:       "test-name",
-			Occupation: "test-occupation",
-			Age:        "test-age",
-			Sex:        "test-sex",
+			Location:    "test-location",
+			Name:        "test-name",
+			Description: "test-description",
 		},
 		Preferences: cfg.Preferences{
 			ResponseStyle: "test-response-style",
@@ -56,16 +54,8 @@ func TestConfig(t *testing.T) {
 		t.Fatalf("expected name to be %v. got %v", expectedCfg.User.Name, actualCfg.User.Name)
 	}
 
-	if actualCfg.User.Occupation != expectedCfg.User.Occupation {
-		t.Fatalf("expected occupation to be %v. got %v", expectedCfg.User.Occupation, actualCfg.User.Occupation)
-	}
-
-	if actualCfg.User.Age != expectedCfg.User.Age {
-		t.Fatalf("expected age to be %v. got %v", expectedCfg.User.Age, actualCfg.User.Age)
-	}
-
-	if actualCfg.User.Sex != expectedCfg.User.Sex {
-		t.Fatalf("expected sex to be %v. got %v", expectedCfg.User.Sex, actualCfg.User.Sex)
+	if actualCfg.User.Description != expectedCfg.User.Description {
+		t.Fatalf("expected description to be %v. got %v", expectedCfg.User.Description, actualCfg.User.Description)
 	}
 
 	if actualCfg.Preferences.ResponseStyle != expectedCfg.Preferences.ResponseStyle {

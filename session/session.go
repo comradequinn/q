@@ -45,7 +45,10 @@ func Write(appDir string, entry Entry) error {
 
 	defer f.Close()
 
-	if err := json.NewEncoder(f).Encode(append(messages, llm.Message{
+	jsonEncoder := json.NewEncoder(f)
+	jsonEncoder.SetIndent("", "  ")
+
+	if err := jsonEncoder.Encode(append(messages, llm.Message{
 		Role: llm.RoleUser,
 		Text: entry.Prompt,
 	}, llm.Message{
