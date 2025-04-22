@@ -10,6 +10,8 @@ Using `q` provides the following features within your terminal:
   * There is no entering of a dedicated `repl` to define a session; leaving the terminal free to execute other commands between prompts while still maintaining the conversational context
 * Session management enables easy stashing of, or switching to, the currently active, or a previously stashed session
   * Easily task switch without losing the current conversational context
+* Support for including local files in prompts
+  * Quickly explain code or summarise text files
 * Fully scriptable and ideal for use in automation and `ci` pipelines
   * All configuration and session history is file or flag based, responses can be structured with a `schema` and activity indicators disabled
 * Support for structured responses using custom `schemas`
@@ -26,7 +28,7 @@ To install `q`, download the appropriate tarball for your `os` from the [release
 Optionally, you can use the below script to do that for you.
 
 ```bash
-export VERSION="v1.0.0"; export OS="linux-amd64"; wget "https://github.com/comradequinn/q/releases/download/${VERSION}/q-${VERSION}-${OS}.tar.gz" && tar -xf "q-${VERSION}-${OS}.tar.gz" && rm -f "q-${VERSION}-${OS}.tar.gz" && chmod +x q && sudo cp q /usr/bin/
+export VERSION="v1.1.0"; export OS="linux-amd64"; wget "https://github.com/comradequinn/q/releases/download/${VERSION}/q-${VERSION}-${OS}.tar.gz" && tar -xf "q-${VERSION}-${OS}.tar.gz" && rm -f "q-${VERSION}-${OS}.tar.gz" && chmod +x q && sudo mv q /usr/local/bin/
 ```
 
 ### Removal
@@ -124,6 +126,14 @@ Your last question was: "I need timestamps in the output".
 ```
 
 To delete a single session, run `q --delete #id` (or `-d #id`) where `#id` is the `#ID` in the `q --list` output. To delete all sessions, run `q --delete-all`
+
+### Including Files
+
+To include a file in your prompt, use the `--file` (or `-f`) parameter passing the path to the file to include. An example is shown below.
+
+```bash
+q -n --file some-code.go "summarise this file"
+```
 
 ### Structured Responses
 

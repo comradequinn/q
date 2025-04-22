@@ -28,8 +28,8 @@ func main() {
 	homeDir, _ := os.UserHomeDir()
 
 	version := flag.Bool("version", false, "print the version")
-	script := flag.Bool("script", false, "supress activity indicators, such as spinners, to better support piping stdout into other utils when scripting")
 	versionShort := flag.Bool("v", false, "print the version")
+	script := flag.Bool("script", false, "supress activity indicators, such as spinners, to better support piping stdout into other utils when scripting")
 	grounding := flag.Bool("grounding", true, "enable grounding with search")
 	schema := flag.String("schema", "", "the json schema that defines the required response format. grounding with search must be disabled to use a response schema")
 	debug := flag.Bool("debug", false, "enable debug output")
@@ -39,6 +39,14 @@ func main() {
 	maxTokens := flag.Int("max-tokens", 0, "the maximum number of tokens to allow in a response. when unset, or set to zero, the value from the config file is used")
 	temperature := flag.Float64("temperature", -1, "the temperature setting for the model. when unset, or set to a value less than zero, the value from the config file is used")
 	topP := flag.Float64("top-p", -1, "the top-p setting for the model. when unset, or set to a value less than zero, the value from the config file is used")
+	apiURL := flag.String("api-url", "https://generativelanguage.googleapis.com/v1beta/models/%v:generateContent?key=%v", "the url for the gemini api. it must expose two placeholders; one for the model and a second for the api key")
+	uploadURL := flag.String("upload-url", "https://generativelanguage.googleapis.com/upload/v1beta/files?key=%v", "the url for the gemini api file upload url. it must expose a placeholder for the api key")
+	systemPrompt := flag.String("system-prompt", "Your responses are printed to a linux terminal. You will ensure those responses are concise and easily rendered in a linux terminal. "+
+		"You will not use markdown syntax in your responses as this is not rendered well in terminal output. However you may use clear, plain text formatting that can be read easily and immediately by a human, "+
+		"such as using dashes for list delimiters. All answers should be factually correct and you should take caution regarding hallucinations. You should only answer the specific question given; do not proactively "+
+		"include additional information that is not directly relevant to the question. ", "the base system prompt to use")
+	file := flag.String("file", "", "the path to a file to include in the prompt")
+	fileShort := flag.String("f", "", "the path to a file to include in the prompt")
 	newSession := flag.Bool("new", false, "save any existing session and start a new one (also -n)")
 	newSessionShort := flag.Bool("n", false, "save any existing session and start a new one (also --new)")
 	listSessions := flag.Bool("list", false, "list all saved sessions by id (also -l)")
@@ -48,11 +56,6 @@ func main() {
 	deleteSession := flag.Int("delete", 0, "the session id to delete")
 	deleteSessionShort := flag.Int("d", 0, "the session id to delete")
 	deleteAllSessions := flag.Bool("delete-all", false, "delete all session data")
-	apiURL := flag.String("url", "https://generativelanguage.googleapis.com/v1beta/models/%v:generateContent?key=%v", "the url for the gemini api. it must expose two placeholders; one for the model and a second for the api key")
-	systemPrompt := flag.String("system-prompt", "Your responses are printed to a linux terminal. You will ensure those responses are concise and easily rendered in a linux terminal. "+
-		"You will not use markdown syntax in your responses as this is not rendered well in terminal output. However you may use clear, plain text formatting that can be read easily and immediately by a human, "+
-		"such as using dashes for list delimiters. All answers should be factually correct and you should take caution regarding hallucinations. You should only answer the specific question given; do not proactively "+
-		"include additional information that is not directly relevant to the question. ", "the base system prompt to use")
 
 	flag.Parse()
 
@@ -137,6 +140,7 @@ func main() {
 		llm.Config{
 			APIKey:        config.Credentials.APIKey,
 			APIURL:        *apiURL,
+			UploadURL:     *uploadURL,
 			SystemPrompt:  *systemPrompt,
 			ResponseStyle: config.Preferences.ResponseStyle,
 			Model:         llm.Model(*model),
@@ -151,6 +155,7 @@ func main() {
 		},
 		llm.Prompt{
 			Text:      prompt,
+			File:      *file + *fileShort,
 			History:   messages,
 			Schema:    *schema,
 			Grounding: *grounding,

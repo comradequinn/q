@@ -7,6 +7,17 @@ const (
 )
 
 type (
+	UploadedFile struct {
+		File struct {
+			Name        string `json:"name"`
+			DisplayName string `json:"displayName"`
+			MimeType    string `json:"mimeType"`
+			SizeBytes   string `json:"sizeBytes"`
+			CreateTime  string `json:"createTime"`
+			UpdateTime  string `json:"updateTime"`
+			URI         string `json:"uri"`
+		} `json:"file"`
+	}
 	Request struct {
 		SystemInstruction SystemInstruction `json:"system_instruction"`
 		Contents          []Content         `json:"contents"`
@@ -41,7 +52,12 @@ type (
 
 type (
 	Part struct {
-		Text string `json:"text"`
+		Text string    `json:"text,omitzero"`
+		File *FileData `json:"fileData,omitempty"`
+	}
+	FileData struct {
+		MIMEType string `json:"mimeType"`
+		URI      string `json:"fileUri"`
 	}
 	Content struct {
 		Role  string `json:"role"`

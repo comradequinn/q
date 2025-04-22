@@ -2,9 +2,10 @@
 
 NAME=q
 BIN=./bin
-PROMPT_1="The time is '$$(date)'. What do you know about me?"
+PROMPT_1="The time is '$$(date)'. Is that correct?"
 PROMPT_2="How many planets in the solar system?"
 PROMPT_3="Which is the largest?"
+PROMPT_4="Summarise this file"
 
 build:
 	@go build -o ${BIN}/${NAME}
@@ -16,6 +17,7 @@ example: build
 	@${BIN}/${NAME} -n ${PROMPT_1}
 	@${BIN}/${NAME} ${PROMPT_2}
 	@${BIN}/${NAME} ${PROMPT_3}
+	@${BIN}/${NAME} -f README.md ${PROMPT_4}
 
 example-structured: build
 	@${BIN}/${NAME} -n --grounding=false --script --schema='{"type":"object","properties":{"response":{"type":"string"}}}' "pick a colour of the rainbow"

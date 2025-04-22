@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
 
 	"github.com/comradequinn/q/llm/internal/schema"
@@ -15,6 +17,7 @@ type (
 	Config struct {
 		APIKey        string
 		APIURL        string
+		UploadURL     string
 		SystemPrompt  string
 		ResponseStyle string
 		Model         Model
@@ -31,6 +34,7 @@ type (
 	Prompt struct {
 		History   []Message
 		Text      string
+		File      string
 		Schema    string
 		Grounding bool
 	}
@@ -40,8 +44,10 @@ type (
 	}
 	Role    string
 	Message struct {
-		Role Role
-		Text string
+		Role         Role   `json:"role,omitzero"`
+		Text         string `json:"text,omitzero"`
+		FileURI      string `json:"fileURI,omitzero"`
+		FileMIMEType string `json:"fileMIMEType,omitzero"`
 	}
 	Model string
 )
@@ -76,7 +82,6 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		All answers should be factually correct and you should take caution regarding hallucinations. 
 		You should only answer the specific question given; do not proactively include additional information that is not directly relevant to the question. 
 		`)
-
 	systemPrompt.WriteString(fmt.Sprintf("Your responses must not exceed %v words in length. ", float64(cfg.MaxTokens)*0.75)) // rough mapping of tokens to words
 
 	defineAttribute := func(key string, val any, unset any) string {
@@ -91,23 +96,35 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 	systemPrompt.WriteString(defineAttribute("description", cfg.User.Description, ""))
 	systemPrompt.WriteString(defineAttribute("preferred response style; note that this only refines your output and does not override any previous instruction where there is a contradiction", cfg.ResponseStyle, ""))
 
-	content := make([]schema.Content, 0, len(prompt.History)+1)
+	contents := make([]schema.Content, 0, len(prompt.History)+1)
 
 	for _, message := range prompt.History {
-		content = append(content, schema.Content{
-			Role: string(message.Role),
-			Parts: []schema.Part{
-				{Text: message.Text},
-			},
-		})
+		content := schema.Content{
+			Role:  string(message.Role),
+			Parts: []schema.Part{{Text: message.Text}}}
+		if message.FileURI != "" {
+			content.Parts = append(content.Parts, schema.Part{File: &schema.FileData{URI: message.FileURI, MIMEType: message.FileMIMEType}})
+		}
+
+		contents = append(contents, content)
 	}
 
-	content = append(content, schema.Content{
+	content := schema.Content{
 		Role: RoleUser,
 		Parts: []schema.Part{
 			{Text: prompt.Text},
 		},
-	})
+	}
+
+	if prompt.File != "" {
+		uri, mimeType, err := uploadFile(cfg, prompt.File)
+		if err != nil {
+			return Response{}, fmt.Errorf("unable to upload file to gemini api. %v", err)
+		}
+		content.Parts = append(content.Parts, schema.Part{File: &schema.FileData{URI: uri, MIMEType: mimeType}})
+	}
+
+	contents = append(contents, content)
 
 	tools := []schema.Tool{}
 
@@ -133,7 +150,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		SystemInstruction: schema.SystemInstruction{
 			Parts: []schema.Part{{Text: systemPrompt.String()}},
 		},
-		Contents:         content,
+		Contents:         contents,
 		Tools:            tools,
 		GenerationConfig: generationConfig,
 	}); err != nil {
@@ -178,8 +195,100 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		sb.WriteString(part.Text)
 	}
 
+	LogPrintf("token_count=%v", response.UsageMetadata.TotalTokenCount)
+
 	return Response{
 		Tokens: response.UsageMetadata.TotalTokenCount,
 		Text:   sb.String(),
 	}, nil
+}
+
+func uploadFile(cfg Config, f string) (string, string, error) {
+	const contentType = "text/plain"
+
+	fileInfo, err := os.Stat(f)
+	if err != nil {
+		return "", "", fmt.Errorf("invalid filepath. '%v' file does exist", f)
+	}
+
+	rq, err := http.NewRequest("POST", fmt.Sprintf(cfg.UploadURL, cfg.APIKey), strings.NewReader(fmt.Sprintf(`{"file":{"display_name":"%v"}}`, fileInfo.Name())))
+	if err != nil {
+		return "", "", fmt.Errorf("unable to create start-upload request. %v", err)
+	}
+
+	rq.Header.Set("X-Goog-Upload-Protocol", "resumable")
+	rq.Header.Set("X-Goog-Upload-Command", "start")
+	rq.Header.Set("X-Goog-Upload-Header-Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
+	rq.Header.Set("X-Goog-Upload-Header-Content-Type", contentType)
+	rq.Header.Set("Content-Type", "application/json")
+
+	LogPrintf("start_upload_request=%+v", rq)
+
+	rs, err := http.DefaultClient.Do(rq)
+	if err != nil {
+		return "", "", fmt.Errorf("error starting file upload. %v", err)
+	}
+	defer rs.Body.Close()
+
+	body, _ := io.ReadAll(rs.Body)
+	LogPrintf("start_upload_response=%q", string(body))
+
+	if rs.StatusCode != http.StatusOK {
+		return "", "", fmt.Errorf("start-upload request failed with status code %v. %v", rs.StatusCode, string(body))
+	}
+
+	uploadURL := rs.Header.Get("X-Goog-Upload-Url")
+	if uploadURL == "" {
+		return "", "", fmt.Errorf("upload url not found in start-upload response header of 'x-goog-upload-url'")
+	}
+
+	file, err := os.Open(f)
+	if err != nil {
+		return "", "", fmt.Errorf("unable to open file '%v' for upload. %v", f, err)
+	}
+	defer file.Close()
+
+	rq, err = http.NewRequest("POST", uploadURL, file) // Use the file as the request body
+	if err != nil {
+		return "", "", fmt.Errorf("unable to create upload-request. %v", err)
+	}
+
+	rq.Header.Set("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
+	rq.Header.Set("X-Goog-Upload-Offset", "0")
+	rq.Header.Set("X-Goog-Upload-Command", "upload, finalize")
+
+	LogPrintf("upload_request=%+v", rq)
+
+	rs, err = http.DefaultClient.Do(rq)
+	if err != nil {
+		return "", "", fmt.Errorf("error during upload-request. %v", err)
+	}
+	defer rs.Body.Close()
+
+	body, err = io.ReadAll(rs.Body)
+	LogPrintf("upload_response=%q", string(body))
+
+	if rs.StatusCode != http.StatusOK || err != nil {
+		return "", "", fmt.Errorf("upload-request failed with status code %v. error: %v. body: %v", rs.StatusCode, err, string(body))
+	}
+
+	uploadResponse := struct {
+		File struct {
+			Name        string `json:"name"`
+			DisplayName string `json:"displayName"`
+			MimeType    string `json:"mimeType"`
+			SizeBytes   string `json:"sizeBytes"`
+			CreateTime  string `json:"createTime"`
+			UpdateTime  string `json:"updateTime"`
+			URI         string `json:"uri"`
+		} `json:"file"`
+	}{}
+
+	if err = json.Unmarshal(body, &uploadResponse); err != nil {
+		return "", "", fmt.Errorf("unable to marshal upload-request response. %v", err)
+	}
+
+	LogPrintf("start_upload_request=%+v", rq)
+
+	return uploadResponse.File.URI, contentType, nil
 }
