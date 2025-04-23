@@ -13,7 +13,7 @@ func Configure(config *cfg.Config) {
 		return value
 	}
 
-	config.Credentials.APIKey = read("Enter a Gemini API key (available from https://aistudio.google.com/apikey)", config.Credentials.APIKey, verifyString)
+	config.Credentials.APIKey = read("Enter a Gemini API key or enter 'env' to read it from the GEMINI_API_KEY environment variable (keys available free from https://aistudio.google.com/apikey)", config.Credentials.APIKey, verifyString)
 	config.User.Name = read("Enter a name to refer to the user with", config.User.Name, verifyString)
 	config.User.Location = read("Enter a location relevant to the user", config.User.Location, verifyString)
 	config.User.Description = read("Enter a description or any information about the user that should be considered in responses", config.User.Description, verifyString)

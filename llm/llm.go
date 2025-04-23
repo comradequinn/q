@@ -157,9 +157,10 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		return Response{}, fmt.Errorf("unable to encode llm request as json. %v", err)
 	}
 
-	LogPrintf("request=%q", request.Bytes())
+	url := fmt.Sprintf(cfg.APIURL, cfg.Model, cfg.APIKey)
+	LogPrintf("url=%v request=%q", url, request.Bytes())
 
-	rs, err := http.Post(fmt.Sprintf(cfg.APIURL, cfg.Model, cfg.APIKey), "application/json", &request)
+	rs, err := http.Post(url, "application/json", &request)
 
 	if err != nil {
 		return Response{}, fmt.Errorf("unable to send request to llm api. %v", err)
@@ -211,7 +212,9 @@ func uploadFile(cfg Config, f string) (string, string, error) {
 		return "", "", fmt.Errorf("invalid filepath. '%v' file does exist", f)
 	}
 
-	rq, err := http.NewRequest("POST", fmt.Sprintf(cfg.UploadURL, cfg.APIKey), strings.NewReader(fmt.Sprintf(`{"file":{"display_name":"%v"}}`, fileInfo.Name())))
+	url := fmt.Sprintf(cfg.UploadURL, cfg.APIKey)
+
+	rq, err := http.NewRequest("POST", url, strings.NewReader(fmt.Sprintf(`{"file":{"display_name":"%v"}}`, fileInfo.Name())))
 	if err != nil {
 		return "", "", fmt.Errorf("unable to create start-upload request. %v", err)
 	}
@@ -222,7 +225,7 @@ func uploadFile(cfg Config, f string) (string, string, error) {
 	rq.Header.Set("X-Goog-Upload-Header-Content-Type", contentType)
 	rq.Header.Set("Content-Type", "application/json")
 
-	LogPrintf("start_upload_request=%+v", rq)
+	LogPrintf("start_upload_url=%+v start_upload_request=%+v", url, rq)
 
 	rs, err := http.DefaultClient.Do(rq)
 	if err != nil {
@@ -257,7 +260,7 @@ func uploadFile(cfg Config, f string) (string, string, error) {
 	rq.Header.Set("X-Goog-Upload-Offset", "0")
 	rq.Header.Set("X-Goog-Upload-Command", "upload, finalize")
 
-	LogPrintf("upload_request=%+v", rq)
+	LogPrintf("upload_url=%v upload_request=%+v", uploadURL, rq)
 
 	rs, err = http.DefaultClient.Do(rq)
 	if err != nil {

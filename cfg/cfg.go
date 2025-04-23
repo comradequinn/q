@@ -70,6 +70,10 @@ func Read(appDir string) (Config, error) {
 		return Config{}, fmt.Errorf("unable to parse config file %s: %w", filePath, err)
 	}
 
+	if config.Credentials.APIKey == "env" {
+		config.Credentials.APIKey = os.Getenv("GEMINI_API_KEY")
+	}
+
 	return config, nil
 }
 

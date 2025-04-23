@@ -11,6 +11,7 @@ import (
 	"github.com/comradequinn/q/cfg"
 	"github.com/comradequinn/q/cli"
 	"github.com/comradequinn/q/llm"
+	"github.com/comradequinn/q/schema"
 	"github.com/comradequinn/q/session"
 )
 
@@ -31,7 +32,7 @@ func main() {
 	versionShort := flag.Bool("v", false, "print the version")
 	script := flag.Bool("script", false, "supress activity indicators, such as spinners, to better support piping stdout into other utils when scripting")
 	grounding := flag.Bool("grounding", true, "enable grounding with search")
-	schema := flag.String("schema", "", "the json schema that defines the required response format. grounding with search must be disabled to use a response schema")
+	schemaDefinition := flag.String("schema", "", "a schema that defines the required response format. either in the form `name:type:[description],...n` or as a json-form open-api schema. grounding with search must be disabled to use a schema")
 	debug := flag.Bool("debug", false, "enable debug output")
 	appDir := flag.String("app-dir", path.Join(homeDir, "."+app), fmt.Sprintf("location of the %v app (directory", app))
 	configure := flag.Bool("config", false, "reset or initialise the configuration")
@@ -119,14 +120,19 @@ func main() {
 	}
 	prompt := flag.Arg(0)
 
-	messages, err := session.Read(*appDir)
-	if err != nil {
-		printfFatal("unable to read history. %v", err)
-	}
-
 	var stopSpinner = func() {}
 	if !*script {
 		stopSpinner = cli.Spin()
+	}
+
+	schema, err := schema.Build(*schemaDefinition)
+	if err != nil {
+		printfFatal("invalid schema definition. %v", err)
+	}
+
+	messages, err := session.Read(*appDir)
+	if err != nil {
+		printfFatal("unable to read history. %v", err)
 	}
 
 	useTemperature := math.Max(*temperature, config.Preferences.Temperature)
@@ -157,7 +163,7 @@ func main() {
 			Text:      prompt,
 			File:      *file + *fileShort,
 			History:   messages,
-			Schema:    *schema,
+			Schema:    schema,
 			Grounding: *grounding,
 		})
 
