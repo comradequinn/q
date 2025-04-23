@@ -1,24 +1,30 @@
 # q
 
-This is `q` (from `query` or `question`). It is a command-line `llm` interface built on Google's `Gemini` models. 
+Named `q` (from `query` or `question`), `q` is a command-line `llm` interface built on Google's `Gemini 2.5` models. 
+
+Using `q` greatly simplifies integrating LLMs into CI pipelines, scripts or other automation. For terminal users, `q` is also a simple, but powerful chat-based assistant.
 
 ## Features
 
-Using `q` provides the following features within your terminal:
+Using `q` provides the following features:
 
-* Non-blocking, yet conversational, prompting allowing natural, fluid usage within the terminal
-  * There is no entering of a dedicated `repl` to define a session; leaving the terminal free to execute other commands between prompts while still maintaining the conversational context
-* Session management enables easy stashing of, or switching to, the currently active, or a previously stashed session
-  * Easily task switch without losing the current conversational context
-* Support for including local files in prompts
-  * Quickly explain code or summarise text files
+* Interactive command-line chatbot
+  * Non-blocking, yet conversational, prompting allowing natural, fluid usage within the terminal environment
+    * The avoidance of a dedicated `repl` to define a session leaves the terminal free to execute other commands between prompts while still maintaining the conversational context
+  * Session management enables easy stashing of, or switching to, the currently active, or a previously stashed session
+    * Making it simple to quickly task switch without permanently losing the current conversational context
 * Fully scriptable and ideal for use in automation and `ci` pipelines
-  * All configuration and session history is file or flag based, responses can be structured with a `schema` and activity indicators disabled
-* Support for structured responses using custom `schemas`
-  * Optionally, have responses returned using a custom `schema` as opposed to free-form text
+  * All configuration and session history is file or flag based
+  * API Keys are provided via environment variables
+  * Support for structured responses using custom `schemas`
+    * Basic schemas can be defined using a simple schema definition language
+    * Complex schemas can be using OpenAPI Schema objects expressed as JSON and optionally defined in dedicated files for ease of management
+  * Interactive-mode activity indicators can be disabled to aid effective redirection and piping
+* Support for attaching files to prompts
+  * Interrogate code, markdown and text files
 * Personalisation of responses
-  * Specify personal or contextual information and style preferences to tailor responses to specific circumstances
-* Model customisation
+  * Specify persistent, personal or contextual information and style preferences to tailor your responses
+* Model configuration
   * Specify custom model configurations to fine-tune output
 
 ## Installation
@@ -28,24 +34,36 @@ To install `q`, download the appropriate tarball for your `os` from the [release
 Optionally, you can use the below script to do that for you.
 
 ```bash
-export VERSION="v1.1.0"; export OS="linux-amd64"; wget "https://github.com/comradequinn/q/releases/download/${VERSION}/q-${VERSION}-${OS}.tar.gz" && tar -xf "q-${VERSION}-${OS}.tar.gz" && rm -f "q-${VERSION}-${OS}.tar.gz" && chmod +x q && sudo mv q /usr/local/bin/
+export VERSION="v1.2.0"; export OS="linux-amd64"; wget "https://github.com/comradequinn/q/releases/download/${VERSION}/q-${VERSION}-${OS}.tar.gz" && tar -xf "q-${VERSION}-${OS}.tar.gz" && rm -f "q-${VERSION}-${OS}.tar.gz" && chmod +x q && sudo mv q /usr/local/bin/
+```
+
+### API Keys
+
+In order to use `q` you will require your `Gemini API Key`. If you do not already have one, these are available free from [Google](https://aistudio.google.com/apikey). 
+
+Once you have the key, set and export it as the conventional environment variable for that value, `GEMINI_API_KEY`.
+
+For convenience, you may wish to add this to your `~/.bashrc` file. An example is shown below
+
+```bash
+# file: ~/.bashrc
+
+export GEMINI_API_KEY="myPriVatEApI_keY_1234567890"
 ```
 
 ### Removal
 
-To remove `q`, delete the binary from `/usr/bin` (or the location it was originally installed in)
+To remove `q`, delete the binary from `/usr/bin` (or the location it was originally to). You may also wish to delete its application directory that stores user preferences and chat history; this is located at `~/.q`.
 
 ## Usage
 
-### Prompting and Initial Configuration
+### Prompting
 
 To chat with `q`, execute it with a prompt
 
 ```bash
 q "how do I list all files in my current directory?"
 ```
-
-> If this is the first time `q` has been executed, before answering it will prompt for an `Gemini API Key`, contextual information about the user and some default model preferences. `Gemini API Keys` are available free from [Google](https://aistudio.google.com/apikey). If you are unsure about what model preferences to use, use the suggested defaults as these are tuned for the expected use-case of `q`. The contextual information you provide about the user is stored on the host machine and included in API calls to `Gemini`. It is not stored or transmitted in any other form or for any other purpose, under any circumstances. You can update the `Gemini API Key`, contextual information about the user or the model preferences, at any time, by running `q --config` 
 
 The result of the prompt will be displayed, as shown below.
 
@@ -127,29 +145,96 @@ Your last question was: "I need timestamps in the output".
 
 To delete a single session, run `q --delete #id` (or `-d #id`) where `#id` is the `#ID` in the `q --list` output. To delete all sessions, run `q --delete-all`
 
-### Including Files
+### Personalisation
 
-To include a file in your prompt, use the `--file` (or `-f`) parameter passing the path to the file to include. An example is shown below.
+You can provide persistent, contextual information about yourself (or the running process) and preferred response styles, at any time, by running `q --config` and answering the prompts. Any information provided will then be implicitly included in all prompts sent to the `Gemini API` from that point on.
+
+Any such information you provide is only stored on the host machine and included in calls to the `Gemini API`. It is not stored or transmitted in any other form or for any other purpose, under any circumstances. 
+
+### Attaching Files
+
+To attach a file to your prompt, use the `--file` (or `-f`) parameter passing the path to the file to include. An example is shown below.
 
 ```bash
 q -n --file some-code.go "summarise this file"
 ```
 
-### Structured Responses
+### Grounding
 
-By default, `q` will request responses structured as free-form text, which is a sensible format for conversational use. However, in many scenarios, it is preferable to have the output in a structured form. To this end, `q` allows you to specify a `json` based `schema` that will be used to form the response.
-
-An example is shown below, note that `grounding` must be disabled to use a `schema`. This is a current stipulation of the `Gemini API`, not `q` itself.
+Grounding is the term for verifying LLM responses with an external source, that source being `Google Search` in the case of `q`. By default this feature is enabled, but it can be disabled with `--grounding=false` as shown below.
 
 ```bash
-q -n --grounding=false --schema='{"type":"object","properties":{"response":{"type":"string"}}}' "pick a colour of the rainbow"
+q -n --grounding=false "how do I list all files in my current directory?"
 ```
 
-This will return a response similar to the below.
+### Scripting
 
-```text
+When using the output of `q` in a script, it is advisable to supress activity indicators and other interactive output using the `--script` flag. This ensures a consistent output stream containing only response data.
+
+The simple example below uses redirection to write the response to a file.
+
+```bash
+q -n --script "pick a colour of the rainbow" > colour.txt
+```
+This will result in a file similar to the below
+
+```bash
+# file: colour.txt
+Blue
+```
+
+### Structured Responses
+
+By default, `q` will request responses structured as free-form text, which is a sensible format for conversational use. However, in many scenarios, particuarly ci and scripting use-cases, it is preferable to have the output in a structured form. To this end, `q` allows you to specify a `schema` that will be used to format the response.
+
+There are two methods of specifying a schema, either by using `QSF` (`q`'s `S`chema `F`ormat) or by providing a JSON based `OpenAPI schema object`. 
+
+In either case, note that `grounding` must be disabled to use a `schema`. This is a current stipulation of the `Gemini API`, not `q` itself.
+
+#### QSF (Q's Schema Format)
+
+`QSF` provides a quick, simple and readable method of defining basic response schemas. It allows the definition of an arbitary number of `fields`, each with a `type` and an optional `description`. `QSF` can only be used to define non-hierarchical schemas, however this is often all that is needed for a substantial amount of structured response use-cases.
+
+The most basic definition of a `QSF` schema, representing a single field response with no description is shown below
+
+```bash
+field-name:type
+```
+A more complex definition showing multiple fields, each with descriptions, is structured as follows.
+
+```bash
+field-name1:type1:description1,field-name2:type2:description2,...n
+```
+
+Providing a description can be useful for both the LLM and the user in understanding the purpose of the field. It can also reduce the amount of guidance needed in the main prompt itself to ensure response content is correctly assigned.
+
+A simple example of execting `q` with a `QSF` defined schema is shown below.
+
+```bash
+q -n --grounding=false --script --schema='colour:string' "pick a colour of the rainbow"
+```
+
+This will return a response similar to the following.
+
+```json
 {
-  "response": "Blue"
+  "colour": "Blue"
+}
+```
+
+#### Open API Schema
+
+For more complex schemas, the definition can be provided as an [OpenAPI Schema Object](https://spec.openapis.org/oas/v3.0.3#schema-object-examples). A simple example is shown below.
+
+```bash
+q -n --grounding=false --script --schema='{"type":"object","properties":{"colour":{"type":"string", "description":"the selected colour"}}}' "pick a colour of the rainbow"
+```
+
+This will return a response similar to the following.
+
+```json
+{
+  "colour": "Blue"
 }
 ```
 
@@ -159,33 +244,17 @@ It may be preferable to store complex `schemas` in a file rather than declaring 
 q -n --grounding=false --schema="$(cat ./schema.json)" "pick a colour of the rainbow"
 ```
 
-#### Scripting
-
-A typical use of a `schema` is in scripting scenarios; enabling support for basic agentic tasks, general automation or for incorporation into `ci` pipelines. Having machine-readable output in a consistent form allows decisions to be safely taken on the output. 
-
-The below extends the previous example to supress activity indicators, with the `--script` flag, and pipe the result into `jq`.
-
-```bash
-q -n --grounding=false --script --schema="$(cat ./schema.json)" "pick a colour of the rainbow" | jq
-```
-
-This will return a response similar to the below.
-
-```json
-{
-  "response": "Blue"
-}
-```
-
 ## Model Configuration 
 
-Using `q` you can set various model configuration options. These include `temperature`, `top-p` and token limits. These can be set in the configuration by running `q --config` and applied to all subsequent sessions. Alternatively, they can be set on a per-request basis by specifying them inline. An example of the latter is shown below.
+Using `q` you can set various model configuration options. These include `temperature`, `top-p` and token limits. An example is shown below.
 
 ```bash
 q --temperature 0.1 --top-p 0.1 "how do I list all files in my current directory?"
 ```
 
-The effect of the above will be to make the responses more determistic and favour correctness over 'imagination'. While the effects of `top-p` and `temperature` are out of the scope of this document, briefly and simplisticly; when the LLM is selecting the next token to include in its response, the value of `top-p` restricts the pool of potential next tokens that can be selected to the most probable subset. This derived by selecting the most probable one by one until the cumulative probabilty exceeds `p`. The  `temperature` value is then used to weight the probabilities in the resultings subset `p` to either level them out or emphasise their differences; making it less or more likely that the highest probability candidate will be chosen.
+The effect of the above will be to make the responses more determistic and favour correctness over 'imagination'. 
+
+While the effects of `top-p` and `temperature` are out of the scope of this document, briefly and simplisticly; when the LLM is selecting the next token to include in its response, the value of `top-p` restricts the pool of potential next tokens that can be selected to the most probable subset. This derived by selecting the most probable, one by one, until the cumulative probabilty exceeds the value of `p`. The `temperature` value is then used to weight the probabilities in that resulting subset to either level them out or emphasise their differences; making it less or more likely that the highest probability candidate will be chosen.
 
 ## Debugging
 

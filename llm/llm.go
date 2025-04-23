@@ -39,8 +39,10 @@ type (
 		Grounding bool
 	}
 	Response struct {
-		Tokens int
-		Text   string
+		Tokens       int
+		Text         string
+		FileURI      string
+		FileMIMEType string
 	}
 	Role    string
 	Message struct {
@@ -116,12 +118,18 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		},
 	}
 
+	var (
+		fileURI      string
+		fileMIMEType string
+		err          error
+	)
+
 	if prompt.File != "" {
-		uri, mimeType, err := uploadFile(cfg, prompt.File)
+		fileURI, fileMIMEType, err = uploadFile(cfg, prompt.File)
 		if err != nil {
 			return Response{}, fmt.Errorf("unable to upload file to gemini api. %v", err)
 		}
-		content.Parts = append(content.Parts, schema.Part{File: &schema.FileData{URI: uri, MIMEType: mimeType}})
+		content.Parts = append(content.Parts, schema.Part{File: &schema.FileData{URI: fileURI, MIMEType: fileMIMEType}})
 	}
 
 	contents = append(contents, content)
@@ -154,15 +162,16 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		Tools:            tools,
 		GenerationConfig: generationConfig,
 	}); err != nil {
-		return Response{}, fmt.Errorf("unable to encode llm request as json. %v", err)
+		return Response{}, fmt.Errorf("unable to encode llm request as json. %w", err)
 	}
 
-	LogPrintf("request=%q", request.Bytes())
+	url := fmt.Sprintf(cfg.APIURL, cfg.Model, cfg.APIKey)
+	LogPrintf("url=%v request=%q", url, request.Bytes())
 
-	rs, err := http.Post(fmt.Sprintf(cfg.APIURL, cfg.Model, cfg.APIKey), "application/json", &request)
+	rs, err := http.Post(url, "application/json", &request)
 
 	if err != nil {
-		return Response{}, fmt.Errorf("unable to send request to llm api. %v", err)
+		return Response{}, fmt.Errorf("unable to send request to llm api. %w", err)
 	}
 
 	defer rs.Body.Close()
@@ -170,7 +179,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 	body, err := io.ReadAll(rs.Body)
 
 	if err != nil {
-		return Response{}, fmt.Errorf("unable to read response body. %v", err)
+		return Response{}, fmt.Errorf("unable to read response body. %w", err)
 	}
 
 	LogPrintf("response=%q", string(body))
@@ -182,7 +191,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 	response := schema.Response{}
 
 	if err := json.Unmarshal(body, &response); err != nil {
-		return Response{}, fmt.Errorf("unable to parse response body. %v", err)
+		return Response{}, fmt.Errorf("unable to parse response body. %w", err)
 	}
 
 	if len(response.Candidates) == 0 || response.Candidates[0].FinishReason != schema.FinishReasonStop {
@@ -198,8 +207,10 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 	LogPrintf("token_count=%v", response.UsageMetadata.TotalTokenCount)
 
 	return Response{
-		Tokens: response.UsageMetadata.TotalTokenCount,
-		Text:   sb.String(),
+		Tokens:       response.UsageMetadata.TotalTokenCount,
+		Text:         sb.String(),
+		FileURI:      fileURI,
+		FileMIMEType: fileMIMEType,
 	}, nil
 }
 
@@ -208,12 +219,14 @@ func uploadFile(cfg Config, f string) (string, string, error) {
 
 	fileInfo, err := os.Stat(f)
 	if err != nil {
-		return "", "", fmt.Errorf("invalid filepath. '%v' file does exist", f)
+		return "", "", fmt.Errorf("invalid filepath. '%v' file does exist. %w", f, err)
 	}
 
-	rq, err := http.NewRequest("POST", fmt.Sprintf(cfg.UploadURL, cfg.APIKey), strings.NewReader(fmt.Sprintf(`{"file":{"display_name":"%v"}}`, fileInfo.Name())))
+	url := fmt.Sprintf(cfg.UploadURL, cfg.APIKey)
+
+	rq, err := http.NewRequest("POST", url, strings.NewReader(fmt.Sprintf(`{"file":{"display_name":"%v"}}`, fileInfo.Name())))
 	if err != nil {
-		return "", "", fmt.Errorf("unable to create start-upload request. %v", err)
+		return "", "", fmt.Errorf("unable to create start-upload request. %w", err)
 	}
 
 	rq.Header.Set("X-Goog-Upload-Protocol", "resumable")
@@ -222,11 +235,11 @@ func uploadFile(cfg Config, f string) (string, string, error) {
 	rq.Header.Set("X-Goog-Upload-Header-Content-Type", contentType)
 	rq.Header.Set("Content-Type", "application/json")
 
-	LogPrintf("start_upload_request=%+v", rq)
+	LogPrintf("start_upload_url=%+v start_upload_request=%+v", url, rq)
 
 	rs, err := http.DefaultClient.Do(rq)
 	if err != nil {
-		return "", "", fmt.Errorf("error starting file upload. %v", err)
+		return "", "", fmt.Errorf("error starting file upload. %w", err)
 	}
 	defer rs.Body.Close()
 
@@ -244,24 +257,24 @@ func uploadFile(cfg Config, f string) (string, string, error) {
 
 	file, err := os.Open(f)
 	if err != nil {
-		return "", "", fmt.Errorf("unable to open file '%v' for upload. %v", f, err)
+		return "", "", fmt.Errorf("unable to open file '%v' for upload. %w", f, err)
 	}
 	defer file.Close()
 
 	rq, err = http.NewRequest("POST", uploadURL, file) // Use the file as the request body
 	if err != nil {
-		return "", "", fmt.Errorf("unable to create upload-request. %v", err)
+		return "", "", fmt.Errorf("unable to create upload-request. %w", err)
 	}
 
 	rq.Header.Set("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
 	rq.Header.Set("X-Goog-Upload-Offset", "0")
 	rq.Header.Set("X-Goog-Upload-Command", "upload, finalize")
 
-	LogPrintf("upload_request=%+v", rq)
+	LogPrintf("upload_url=%v upload_request=%+v", uploadURL, rq)
 
 	rs, err = http.DefaultClient.Do(rq)
 	if err != nil {
-		return "", "", fmt.Errorf("error during upload-request. %v", err)
+		return "", "", fmt.Errorf("error during upload-request. %w", err)
 	}
 	defer rs.Body.Close()
 
@@ -269,7 +282,7 @@ func uploadFile(cfg Config, f string) (string, string, error) {
 	LogPrintf("upload_response=%q", string(body))
 
 	if rs.StatusCode != http.StatusOK || err != nil {
-		return "", "", fmt.Errorf("upload-request failed with status code %v. error: %v. body: %v", rs.StatusCode, err, string(body))
+		return "", "", fmt.Errorf("upload-request failed with status code %v. error: %w. body: %v", rs.StatusCode, err, string(body))
 	}
 
 	uploadResponse := struct {
@@ -285,7 +298,7 @@ func uploadFile(cfg Config, f string) (string, string, error) {
 	}{}
 
 	if err = json.Unmarshal(body, &uploadResponse); err != nil {
-		return "", "", fmt.Errorf("unable to marshal upload-request response. %v", err)
+		return "", "", fmt.Errorf("unable to marshal upload-request response. %w", err)
 	}
 
 	LogPrintf("start_upload_request=%+v", rq)

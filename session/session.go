@@ -59,7 +59,7 @@ func Write(appDir string, entry Entry) error {
 		Role: llm.RoleModel,
 		Text: entry.Response,
 	})); err != nil {
-		return fmt.Errorf("unable to encode session file. %v", err)
+		return fmt.Errorf("unable to encode session file. %w", err)
 	}
 
 	return nil
@@ -82,7 +82,7 @@ func Read(appDir string) ([]llm.Message, error) {
 			return []llm.Message{}, nil
 		}
 
-		return nil, fmt.Errorf("unable to decode session file. . %v", err)
+		return nil, fmt.Errorf("unable to decode session file. %w", err)
 	}
 
 	return messages, nil
@@ -174,7 +174,7 @@ func Stash(appDir string) error {
 	}
 
 	if err := os.Rename(sessionFile, strings.TrimSuffix(sessionFile, ActiveSessionFileSuffix)); err != nil {
-		return fmt.Errorf("unable to rename existing active	session file. %v", err)
+		return fmt.Errorf("unable to rename existing active	session file. %w", err)
 	}
 
 	return nil
@@ -208,7 +208,7 @@ func Restore(appDir string, recordID int) error {
 	}
 
 	if err := os.Rename(path.Join(sessionDir, record.Name), path.Join(sessionDir, record.Name+ActiveSessionFileSuffix)); err != nil {
-		return fmt.Errorf("unable to restore session file. %v", err)
+		return fmt.Errorf("unable to restore session file. %w", err)
 	}
 
 	return nil
@@ -234,7 +234,7 @@ func Delete(appDir string, recordID int) error {
 	}
 
 	if err := os.Remove(path.Join(sessionDir, record.Name)); err != nil {
-		return fmt.Errorf("unable to delete session file. %v", err)
+		return fmt.Errorf("unable to delete session file. %w", err)
 	}
 
 	return nil
@@ -249,7 +249,7 @@ func DeleteAll(appDir string) error {
 	}
 
 	if err := os.RemoveAll(sessionDir); err != nil {
-		return fmt.Errorf("unable to delete all session data. %v", err)
+		return fmt.Errorf("unable to delete all session data. %w", err)
 	}
 
 	return nil

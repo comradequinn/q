@@ -1,14 +1,13 @@
-package cfg_test
+package cfg
 
 import (
 	"os"
 	"testing"
-
-	"github.com/comradequinn/q/cfg"
 )
 
 func TestConfig(t *testing.T) {
 	testDir := "./test"
+	os_Getenv = func(string) string { return "test-api-key" }
 
 	defer func() {
 		if _, err := os.Stat(testDir); err == nil {
@@ -18,25 +17,25 @@ func TestConfig(t *testing.T) {
 		}
 	}()
 
-	expectedCfg := cfg.Config{
-		Credentials: cfg.Credentials{
+	expectedCfg := Config{
+		Credentials: Credentials{
 			APIKey: "test-api-key",
 		},
-		User: cfg.User{
+		User: User{
 			Location:    "test-location",
 			Name:        "test-name",
 			Description: "test-description",
 		},
-		Preferences: cfg.Preferences{
+		Preferences: Preferences{
 			ResponseStyle: "test-response-style",
 		},
 	}
 
-	if err := cfg.Save(expectedCfg, testDir); err != nil {
+	if err := Save(expectedCfg.User, expectedCfg.Preferences, testDir); err != nil {
 		t.Fatalf("expected no error saving config. got %v", err)
 	}
 
-	actualCfg, err := cfg.Read(testDir)
+	actualCfg, err := Read(testDir)
 
 	if err != nil {
 		t.Fatalf("expected no error reading config. got %v", err)

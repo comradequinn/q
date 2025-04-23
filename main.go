@@ -4,13 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math"
 	"os"
 	"path"
 
 	"github.com/comradequinn/q/cfg"
 	"github.com/comradequinn/q/cli"
 	"github.com/comradequinn/q/llm"
+	"github.com/comradequinn/q/schema"
 	"github.com/comradequinn/q/session"
 )
 
@@ -24,21 +24,26 @@ var (
 )
 
 func main() {
-	log.SetOutput(os.Stderr)
-	homeDir, _ := os.UserHomeDir()
+	printfFatal := func(format string, v ...any) {
+		fmt.Printf(format+"\n", v...)
+		os.Exit(1)
+	}
 
+	log.SetOutput(os.Stderr)
+
+	homeDir, _ := os.UserHomeDir()
 	version := flag.Bool("version", false, "print the version")
 	versionShort := flag.Bool("v", false, "print the version")
 	script := flag.Bool("script", false, "supress activity indicators, such as spinners, to better support piping stdout into other utils when scripting")
 	grounding := flag.Bool("grounding", true, "enable grounding with search")
-	schema := flag.String("schema", "", "the json schema that defines the required response format. grounding with search must be disabled to use a response schema")
+	schemaDefinition := flag.String("schema", "", "a schema that defines the required response format. either in the form `name:type:[description],...n` or as a json-form open-api schema. grounding with search must be disabled to use a schema")
 	debug := flag.Bool("debug", false, "enable debug output")
 	appDir := flag.String("app-dir", path.Join(homeDir, "."+app), fmt.Sprintf("location of the %v app (directory", app))
 	configure := flag.Bool("config", false, "reset or initialise the configuration")
 	model := flag.String("model", llm.ModelGeminiPro, "the model to use")
-	maxTokens := flag.Int("max-tokens", 0, "the maximum number of tokens to allow in a response. when unset, or set to zero, the value from the config file is used")
-	temperature := flag.Float64("temperature", -1, "the temperature setting for the model. when unset, or set to a value less than zero, the value from the config file is used")
-	topP := flag.Float64("top-p", -1, "the top-p setting for the model. when unset, or set to a value less than zero, the value from the config file is used")
+	maxTokens := flag.Int("max-tokens", 10000, "the maximum number of tokens to allow in a response")
+	temperature := flag.Float64("temperature", 0.2, "the temperature setting for the model")
+	topP := flag.Float64("top-p", 0.2, "the top-p setting for the model")
 	apiURL := flag.String("api-url", "https://generativelanguage.googleapis.com/v1beta/models/%v:generateContent?key=%v", "the url for the gemini api. it must expose two placeholders; one for the model and a second for the api key")
 	uploadURL := flag.String("upload-url", "https://generativelanguage.googleapis.com/upload/v1beta/files?key=%v", "the url for the gemini api file upload url. it must expose a placeholder for the api key")
 	systemPrompt := flag.String("system-prompt", "Your responses are printed to a linux terminal. You will ensure those responses are concise and easily rendered in a linux terminal. "+
@@ -65,24 +70,14 @@ func main() {
 
 	config, err := cfg.Read(*appDir)
 	if err != nil {
-		fmt.Printf("unable to read config file. %v", err)
-	}
-
-	if *configure || config.Credentials.APIKey == "" {
-		cli.Configure(&config)
-		cfg.Save(config, *appDir)
-
-		if *configure {
-			os.Exit(0)
-		}
-	}
-
-	printfFatal := func(format string, v ...any) {
-		fmt.Printf(format+"\n", v...)
-		os.Exit(1)
+		printfFatal("unable to read config. %v", err)
 	}
 
 	switch {
+	case *configure:
+		cli.Configure(&config)
+		cfg.Save(config.User, config.Preferences, *appDir)
+		os.Exit(0)
 	case *version || *versionShort:
 		fmt.Printf("%v %v %v\n", app, tag, commit)
 		os.Exit(0)
@@ -119,21 +114,19 @@ func main() {
 	}
 	prompt := flag.Arg(0)
 
-	messages, err := session.Read(*appDir)
-	if err != nil {
-		printfFatal("unable to read history. %v", err)
-	}
-
 	var stopSpinner = func() {}
 	if !*script {
 		stopSpinner = cli.Spin()
 	}
 
-	useTemperature := math.Max(*temperature, config.Preferences.Temperature)
-	useTopP := math.Max(*topP, config.Preferences.TopP)
-	useTokens := *maxTokens
-	if useTokens == 0 {
-		useTokens = config.Preferences.MaxTokens
+	schema, err := schema.Build(*schemaDefinition)
+	if err != nil {
+		printfFatal("invalid schema definition. %v", err)
+	}
+
+	messages, err := session.Read(*appDir)
+	if err != nil {
+		printfFatal("unable to read history. %v", err)
 	}
 
 	rs, err := llm.Generate(
@@ -144,9 +137,9 @@ func main() {
 			SystemPrompt:  *systemPrompt,
 			ResponseStyle: config.Preferences.ResponseStyle,
 			Model:         llm.Model(*model),
-			MaxTokens:     useTokens,
-			Temperature:   useTemperature,
-			TopP:          useTopP,
+			MaxTokens:     *maxTokens,
+			Temperature:   *temperature,
+			TopP:          *topP,
 			User: llm.User{
 				Name:        config.User.Name,
 				Location:    config.User.Location,
@@ -157,7 +150,7 @@ func main() {
 			Text:      prompt,
 			File:      *file + *fileShort,
 			History:   messages,
-			Schema:    *schema,
+			Schema:    schema,
 			Grounding: *grounding,
 		})
 
@@ -166,8 +159,10 @@ func main() {
 	}
 
 	if err := session.Write(*appDir, session.Entry{
-		Prompt:   prompt,
-		Response: rs.Text,
+		Prompt:       prompt,
+		Response:     rs.Text,
+		FileURI:      rs.FileURI,
+		FileMIMEType: rs.FileMIMEType,
 	}); err != nil {
 		printfFatal("unable to update session. %v", err)
 	}
