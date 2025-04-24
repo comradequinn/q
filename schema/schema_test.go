@@ -13,12 +13,12 @@ func TestBuild(t *testing.T) {
 	}{
 		{
 			name:       "Single full, valid definitions",
-			definition: "id:integer:User ID",
-			expected:   `{"properties":{"id":{"description":"User ID","type":"integer"}},"type":"object"}`,
+			definition: "id:integer:User.ID, with some punctation!",
+			expected:   `{"properties":{"id":{"description":"User.ID, with some punctation!","type":"integer"}},"type":"object"}`,
 		},
 		{
 			name:       "Multiple full, valid definitions",
-			definition: "id:integer:User ID,name:string:User name,email:string:User email address",
+			definition: "id:integer:User ID|name:string:User name|email:string:User email address",
 			expected:   `{"properties":{"email":{"description":"User email address","type":"string"},"id":{"description":"User ID","type":"integer"},"name":{"description":"User name","type":"string"}},"type":"object"}`,
 		},
 		{
@@ -28,12 +28,12 @@ func TestBuild(t *testing.T) {
 		},
 		{
 			name:       "Multiple partial, valid definitions",
-			definition: "id:integer,name:string,email:string",
+			definition: "id:integer|name:string|email:string",
 			expected:   `{"properties":{"email":{"description":"","type":"string"},"id":{"description":"","type":"integer"},"name":{"description":"","type":"string"}},"type":"object"}`,
 		},
 		{
 			name:       "Multiple partial and full, valid definitions",
-			definition: "id:integer,name:string:User name,email:string",
+			definition: "id:integer|name:string:User name|email:string",
 			expected:   `{"properties":{"email":{"description":"","type":"string"},"id":{"description":"","type":"integer"},"name":{"description":"User name","type":"string"}},"type":"object"}`,
 		},
 		{
@@ -43,7 +43,7 @@ func TestBuild(t *testing.T) {
 		},
 		{
 			name:        "Mixed, valid and invalid definition",
-			definition:  "id:integer,name:string:User name:invalid,email:string",
+			definition:  "id:integer|name:string:User name:invalid|email:string",
 			expectError: true,
 		},
 	}

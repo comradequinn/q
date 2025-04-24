@@ -34,7 +34,7 @@ To install `q`, download the appropriate tarball for your `os` from the [release
 Optionally, you can use the below script to do that for you.
 
 ```bash
-export VERSION="v1.2.0"; export OS="linux-amd64"; wget "https://github.com/comradequinn/q/releases/download/${VERSION}/q-${VERSION}-${OS}.tar.gz" && tar -xf "q-${VERSION}-${OS}.tar.gz" && rm -f "q-${VERSION}-${OS}.tar.gz" && chmod +x q && sudo mv q /usr/local/bin/
+export VERSION="v1.3.0"; export OS="linux-amd64"; wget "https://github.com/comradequinn/q/releases/download/${VERSION}/q-${VERSION}-${OS}.tar.gz" && tar -xf "q-${VERSION}-${OS}.tar.gz" && rm -f "q-${VERSION}-${OS}.tar.gz" && chmod +x q && sudo mv q /usr/local/bin/
 ```
 
 ### API Keys
@@ -55,7 +55,72 @@ export GEMINI_API_KEY="myPriVatEApI_keY_1234567890"
 
 To remove `q`, delete the binary from `/usr/bin` (or the location it was originally to). You may also wish to delete its application directory that stores user preferences and chat history; this is located at `~/.q`.
 
+## Quick Start
+
+These examples show typical sequences for the two forms of `q` usage: interactive and scripted. For those familiar with the command line, scripting and LLMs, they are likely enough you to become productive with `q`.
+
+### Interactive Mode
+
+The following example shows the fundamentals of interactive, conversational usage of `q` within a user's terminal
+
+```bash
+q "how do I list all files in my current directory?" # ask a question
+# >> to list all files in the current directory run the... (response ommitted for brevity)
+
+q "I want timestamps in the output" # ask a follow up question relying on the previous question for context
+# >> to include timestamps in the directory listing output... (response ommitted for brevity)
+
+q --new "What is the weather like in London tomorrow?" # stash the existing conversational context and start a new session (-n can be used as a shortform)
+# >> In London tomorrow it will be grey and wet... (response ommitted for brevity)
+
+q --list # show current and active sessions, the asterix indicates the active session (-l can be used as a shortform)
+>>   #1 (April 24 2025): 'how do i list all files in my current directory?'
+>> * #2 (April 24 2025): 'what is the weather like in london tomorrow?'
+
+q --restore 1 # switch the active session back to the early topic (-r can be used as a shortform)
+
+q "I want file permissions in the output" # ask a follow up question relying on context from the restored session
+# >> to include file permissions in the directory listing output... (response ommitted for brevity)
+
+q --new --file ./main.go "Summarise this code for me" # ask a question based on the file contents (-f can be used as a shortform)
+# >> This file contains badly organised and incomprehensible code, even to an LLM... (response ommitted for brevity)
+```
+
+### Scripting
+
 ## Usage
+
+The following example describes how to use `q` to perform a basic, automated code review of a given file.
+
+For clarity, note that the below command...
+
+```bash
+# start a new q session in script mode (supresses output, -s can also be used). include the main.go file in the prompt and specify a schema for the response
+q --new --script --file ./main.go --schema='quality:integer:1 excellent, 5 terrible|reason:string:brief justification for the quality grade' "perform a code review on this file"
+```
+
+... will result in the following...
+
+```json
+{
+  "quality": 5,
+  "reason": "This file contains badly organised and incomprehensible code, even to an LLM. Complete gibberish"
+}
+```
+
+Given this understanding, the script below demonstrates how this data can be used as the basis for decisions in CI, scripts or other automation, see the revised version below.
+
+```bash
+# perform the 'code review' and store the JSON response in a variable
+JSON=$(q -n -s -f ./main.go --schema='quality:integer:1 excellent, 5 terrible|reason:string:brief justification for the quality grade' "perform a code review on this file")
+# parse the JSON into an array containing either the 'suggested improvements' or 'ok' and the associated exit code based on whether it was an 'ok' result or it required revising
+# - eg '[ 'ok', 0 ] or '[ 'horrific stuff, unreadable...', 1 ]
+RESULT=$(echo "$JSON" | jq -r 'if .quality > 2 then [.reason, 1] else ["ok", 0] end')
+# print either 'ok' or the suggested improvements
+echo "$RESULT" | jq -r '.[0]' 
+# exit with a return code derived from whether the minimum required quality was met
+exit "$(echo "$RESULT" | jq -r '.[1]')" 
+```
 
 ### Prompting
 
@@ -169,7 +234,7 @@ q -n --grounding=false "how do I list all files in my current directory?"
 
 ### Scripting
 
-When using the output of `q` in a script, it is advisable to supress activity indicators and other interactive output using the `--script` flag. This ensures a consistent output stream containing only response data.
+When using the output of `q` in a script, it is advisable to supress activity indicators and other interactive output using the `--script` flag (or `-s`). This ensures a consistent output stream containing only response data.
 
 The simple example below uses redirection to write the response to a file.
 
@@ -189,7 +254,7 @@ By default, `q` will request responses structured as free-form text, which is a 
 
 There are two methods of specifying a schema, either by using `QSF` (`q`'s `S`chema `F`ormat) or by providing a JSON based `OpenAPI schema object`. 
 
-In either case, note that `grounding` must be disabled to use a `schema`. This is a current stipulation of the `Gemini API`, not `q` itself.
+In either case, note that `grounding` will be implicitly disabled when using a `schema`, this is a current stipulation of the `Gemini API`, not `q` itself.
 
 #### QSF (Q's Schema Format)
 
@@ -198,12 +263,12 @@ In either case, note that `grounding` must be disabled to use a `schema`. This i
 The most basic definition of a `QSF` schema, representing a single field response with no description is shown below
 
 ```bash
-field-name:type
+field-name:type # for example, 'result:integer'
 ```
 A more complex definition showing multiple fields, each with descriptions, is structured as follows.
 
 ```bash
-field-name1:type1:description1,field-name2:type2:description2,...n
+field-name1:type1:description1|field-name2:type2:description2,...n # for example, 'result:integer:the result of the review|reason:string:the justification of the result of the review'
 ```
 
 Providing a description can be useful for both the LLM and the user in understanding the purpose of the field. It can also reduce the amount of guidance needed in the main prompt itself to ensure response content is correctly assigned.
@@ -211,7 +276,7 @@ Providing a description can be useful for both the LLM and the user in understan
 A simple example of execting `q` with a `QSF` defined schema is shown below.
 
 ```bash
-q -n --grounding=false --script --schema='colour:string' "pick a colour of the rainbow"
+q -n --script --schema='colour:string' "pick a colour of the rainbow"
 ```
 
 This will return a response similar to the following.
@@ -227,7 +292,7 @@ This will return a response similar to the following.
 For more complex schemas, the definition can be provided as an [OpenAPI Schema Object](https://spec.openapis.org/oas/v3.0.3#schema-object-examples). A simple example is shown below.
 
 ```bash
-q -n --grounding=false --script --schema='{"type":"object","properties":{"colour":{"type":"string", "description":"the selected colour"}}}' "pick a colour of the rainbow"
+q -n --script --schema='{"type":"object","properties":{"colour":{"type":"string", "description":"the selected colour"}}}' "pick a colour of the rainbow"
 ```
 
 This will return a response similar to the following.
@@ -241,15 +306,15 @@ This will return a response similar to the following.
 It may be preferable to store complex `schemas` in a file rather than declaring them inline. Standard command substitution techniques can be used to enable this. The example below shows how the same `schema` as defined inline above can instead be read from the file `./schema.json`.
 
 ```bash
-q -n --grounding=false --schema="$(cat ./schema.json)" "pick a colour of the rainbow"
+q -n --schema="$(cat ./schema.json)" "pick a colour of the rainbow"
 ```
 
 ## Model Configuration 
 
-Using `q` you can set various model configuration options. These include `temperature`, `top-p` and token limits. An example is shown below.
+Using `q` you can set various model configuration options. These include `model version`, `temperature`, `top-p` and `token limits`. An example is shown below.
 
 ```bash
-q --temperature 0.1 --top-p 0.1 "how do I list all files in my current directory?"
+q --model 'custom-gemini-exp-model-123' --temperature 0.1 --top-p 0.1 --max-tokens=1000 "how do I list all files in my current directory?"
 ```
 
 The effect of the above will be to make the responses more determistic and favour correctness over 'imagination'. 

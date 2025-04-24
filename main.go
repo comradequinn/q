@@ -35,12 +35,14 @@ func main() {
 	version := flag.Bool("version", false, "print the version")
 	versionShort := flag.Bool("v", false, "print the version")
 	script := flag.Bool("script", false, "supress activity indicators, such as spinners, to better support piping stdout into other utils when scripting")
+	scriptShort := flag.Bool("s", false, "supress activity indicators, such as spinners, to better support piping stdout into other utils when scripting")
 	grounding := flag.Bool("grounding", true, "enable grounding with search")
 	schemaDefinition := flag.String("schema", "", "a schema that defines the required response format. either in the form `name:type:[description],...n` or as a json-form open-api schema. grounding with search must be disabled to use a schema")
 	debug := flag.Bool("debug", false, "enable debug output")
 	appDir := flag.String("app-dir", path.Join(homeDir, "."+app), fmt.Sprintf("location of the %v app (directory", app))
 	configure := flag.Bool("config", false, "reset or initialise the configuration")
-	model := flag.String("model", llm.ModelGeminiPro, "the model to use")
+	model := flag.String("model", "", "the specific model to use")
+	flashModel := flag.Bool("flash", false, fmt.Sprintf("use the cheaper %v model", llm.Models.Flash))
 	maxTokens := flag.Int("max-tokens", 10000, "the maximum number of tokens to allow in a response")
 	temperature := flag.Float64("temperature", 0.2, "the temperature setting for the model")
 	topP := flag.Float64("top-p", 0.2, "the top-p setting for the model")
@@ -64,49 +66,47 @@ func main() {
 
 	flag.Parse()
 
-	if *debug {
-		llm.LogPrintf = log.Printf
-	}
-
 	config, err := cfg.Read(*appDir)
 	if err != nil {
 		printfFatal("unable to read config. %v", err)
 	}
 
-	switch {
-	case *configure:
-		cli.Configure(&config)
-		cfg.Save(config.User, config.Preferences, *appDir)
-		os.Exit(0)
-	case *version || *versionShort:
-		fmt.Printf("%v %v %v\n", app, tag, commit)
-		os.Exit(0)
-	case *newSession || *newSessionShort:
-		session.Stash(*appDir)
-	case *restoreSession > 0 || *restoreSessionShort > 0:
-		sessionID := *restoreSession + *restoreSessionShort
-		if err := session.Restore(*appDir, sessionID); err != nil {
-			printfFatal("unable to restore session. %v", err)
+	{ // non-prompt commands
+		switch {
+		case *version || *versionShort:
+			fmt.Printf("%v %v %v (pro-model: %v, flash-model: %v)\n", app, tag, commit, llm.Models.Pro, llm.Models.Flash)
+			os.Exit(0)
+		case *configure:
+			cli.Configure(&config)
+			cfg.Save(config.User, config.Preferences, *appDir)
+			os.Exit(0)
+		case *newSession || *newSessionShort:
+			session.Stash(*appDir)
+		case *restoreSession > 0 || *restoreSessionShort > 0:
+			sessionID := *restoreSession + *restoreSessionShort
+			if err := session.Restore(*appDir, sessionID); err != nil {
+				printfFatal("unable to restore session. %v", err)
+			}
+			os.Exit(0)
+		case *deleteSession > 0 || *deleteSessionShort > 0:
+			sessionID := *deleteSession + *deleteSessionShort
+			if err := session.Delete(*appDir, sessionID); err != nil {
+				printfFatal("unable to delete session. %v", err)
+			}
+			os.Exit(0)
+		case *deleteAllSessions:
+			if err := session.DeleteAll(*appDir); err != nil {
+				printfFatal("unable to delete sessions. %v", err)
+			}
+			os.Exit(0)
+		case *listSessions || *listSessionsShort:
+			records, err := session.List(*appDir)
+			if err != nil {
+				printfFatal("unable to list history. %v", err)
+			}
+			cli.ListSessions(records)
+			os.Exit(0)
 		}
-		os.Exit(0)
-	case *deleteSession > 0 || *deleteSessionShort > 0:
-		sessionID := *deleteSession + *deleteSessionShort
-		if err := session.Delete(*appDir, sessionID); err != nil {
-			printfFatal("unable to delete session. %v", err)
-		}
-		os.Exit(0)
-	case *deleteAllSessions:
-		if err := session.DeleteAll(*appDir); err != nil {
-			printfFatal("unable to delete sessions. %v", err)
-		}
-		os.Exit(0)
-	case *listSessions || *listSessionsShort:
-		records, err := session.List(*appDir)
-		if err != nil {
-			printfFatal("unable to list history. %v", err)
-		}
-		cli.ListSessions(records)
-		os.Exit(0)
 	}
 
 	if len(flag.Args()) != 1 {
@@ -115,8 +115,10 @@ func main() {
 	prompt := flag.Arg(0)
 
 	var stopSpinner = func() {}
-	if !*script {
-		stopSpinner = cli.Spin()
+	{
+		if !*script && !*scriptShort {
+			stopSpinner = cli.Spin()
+		}
 	}
 
 	schema, err := schema.Build(*schemaDefinition)
@@ -129,6 +131,16 @@ func main() {
 		printfFatal("unable to read history. %v", err)
 	}
 
+	useModel := *model
+	{
+		if useModel == "" {
+			useModel = llm.Models.Pro
+		}
+		if *flashModel {
+			useModel = llm.Models.Flash
+		}
+	}
+
 	rs, err := llm.Generate(
 		llm.Config{
 			APIKey:        config.Credentials.APIKey,
@@ -136,7 +148,7 @@ func main() {
 			UploadURL:     *uploadURL,
 			SystemPrompt:  *systemPrompt,
 			ResponseStyle: config.Preferences.ResponseStyle,
-			Model:         llm.Model(*model),
+			Model:         useModel,
 			MaxTokens:     *maxTokens,
 			Temperature:   *temperature,
 			TopP:          *topP,
@@ -145,6 +157,12 @@ func main() {
 				Location:    config.User.Location,
 				Description: config.User.Description,
 			},
+			DebugPrintf: func() func(string, ...any) {
+				if !*debug {
+					return func(string, ...any) {}
+				}
+				return log.Printf
+			}(),
 		},
 		llm.Prompt{
 			Text:      prompt,
@@ -161,8 +179,8 @@ func main() {
 	if err := session.Write(*appDir, session.Entry{
 		Prompt:       prompt,
 		Response:     rs.Text,
-		FileURI:      rs.FileURI,
-		FileMIMEType: rs.FileMIMEType,
+		FileURI:      rs.File.URI,
+		FileMIMEType: rs.File.MIMEType,
 	}); err != nil {
 		printfFatal("unable to update session. %v", err)
 	}

@@ -6,10 +6,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strconv"
 	"strings"
 
+	"github.com/comradequinn/q/llm/internal/resource"
 	"github.com/comradequinn/q/llm/internal/schema"
 )
 
@@ -20,11 +19,12 @@ type (
 		UploadURL     string
 		SystemPrompt  string
 		ResponseStyle string
-		Model         Model
+		Model         string
 		MaxTokens     int
 		Temperature   float64
 		TopP          float64
 		User          User
+		DebugPrintf   func(format string, v ...any)
 	}
 	User struct {
 		Name        string
@@ -38,11 +38,14 @@ type (
 		Schema    string
 		Grounding bool
 	}
+	FileReference struct {
+		URI      string
+		MIMEType string
+	}
 	Response struct {
-		Tokens       int
-		Text         string
-		FileURI      string
-		FileMIMEType string
+		Tokens int
+		Text   string
+		File   FileReference
 	}
 	Role    string
 	Message struct {
@@ -51,18 +54,21 @@ type (
 		FileURI      string `json:"fileURI,omitzero"`
 		FileMIMEType string `json:"fileMIMEType,omitzero"`
 	}
-	Model string
-)
-
-const (
-	RoleUser         = "user"
-	RoleModel        = "model"
-	ModelGeminiPro   = "gemini-2.5-pro-preview-03-25"
-	ModelGeminiFlash = "gemini-2.5-flash-preview-04-17"
 )
 
 var (
-	LogPrintf = func(format string, v ...any) {}
+	Models = struct {
+		Pro   string
+		Flash string
+	}{
+		Pro:   "gemini-2.5-pro-preview-03-25",
+		Flash: "gemini-2.5-flash-preview-04-17",
+	}
+)
+
+const (
+	RoleUser  = "user"
+	RoleModel = "model"
 )
 
 // Generate queries the configured LLM with the specified prompt and returns the result
@@ -71,8 +77,9 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		return Response{}, fmt.Errorf("invalid prompt. model, maxtokens and temperature must be specified")
 	}
 
-	if prompt.Grounding && prompt.Schema != "" {
-		return Response{}, fmt.Errorf("invalid prompt. cannot use grounding with a response schema")
+	if prompt.Schema != "" && prompt.Grounding {
+		cfg.DebugPrintf("grounding was specified but silently disabled due to the specification of a schema. the gemini api will not currently perform grounding for prompts requiring a structured response")
+		prompt.Grounding = false
 	}
 
 	systemPrompt := strings.Builder{}
@@ -105,7 +112,9 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 			Role:  string(message.Role),
 			Parts: []schema.Part{{Text: message.Text}}}
 		if message.FileURI != "" {
-			content.Parts = append(content.Parts, schema.Part{File: &schema.FileData{URI: message.FileURI, MIMEType: message.FileMIMEType}})
+			content.Parts = append(content.Parts, schema.Part{
+				File: &schema.FileData{URI: message.FileURI, MIMEType: message.FileMIMEType},
+			})
 		}
 
 		contents = append(contents, content)
@@ -119,17 +128,22 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 	}
 
 	var (
-		fileURI      string
-		fileMIMEType string
-		err          error
+		resourceRef resource.Reference
+		err         error
 	)
 
 	if prompt.File != "" {
-		fileURI, fileMIMEType, err = uploadFile(cfg, prompt.File)
+		resourceRef, err = resource.Upload(resource.UploadRequest{
+			URL:  cfg.UploadURL,
+			Key:  cfg.APIKey,
+			File: prompt.File,
+		}, cfg.DebugPrintf)
+
 		if err != nil {
 			return Response{}, fmt.Errorf("unable to upload file to gemini api. %v", err)
 		}
-		content.Parts = append(content.Parts, schema.Part{File: &schema.FileData{URI: fileURI, MIMEType: fileMIMEType}})
+
+		content.Parts = append(content.Parts, schema.Part{File: &schema.FileData{URI: resourceRef.URI, MIMEType: resourceRef.MIMEType}})
 	}
 
 	contents = append(contents, content)
@@ -166,7 +180,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 	}
 
 	url := fmt.Sprintf(cfg.APIURL, cfg.Model, cfg.APIKey)
-	LogPrintf("url=%v request=%q", url, request.Bytes())
+	cfg.DebugPrintf("url=%v request=%q", url, request.Bytes())
 
 	rs, err := http.Post(url, "application/json", &request)
 
@@ -182,7 +196,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		return Response{}, fmt.Errorf("unable to read response body. %w", err)
 	}
 
-	LogPrintf("response=%q", string(body))
+	cfg.DebugPrintf("response=%q", string(body))
 
 	if rs.StatusCode != 200 {
 		return Response{}, fmt.Errorf("non-200 status code returned from llm api. %s", body)
@@ -204,104 +218,14 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		sb.WriteString(part.Text)
 	}
 
-	LogPrintf("token_count=%v", response.UsageMetadata.TotalTokenCount)
+	cfg.DebugPrintf("token_count=%v", response.UsageMetadata.TotalTokenCount)
 
 	return Response{
-		Tokens:       response.UsageMetadata.TotalTokenCount,
-		Text:         sb.String(),
-		FileURI:      fileURI,
-		FileMIMEType: fileMIMEType,
+		Tokens: response.UsageMetadata.TotalTokenCount,
+		Text:   sb.String(),
+		File: FileReference{
+			URI:      resourceRef.URI,
+			MIMEType: resourceRef.MIMEType,
+		},
 	}, nil
-}
-
-func uploadFile(cfg Config, f string) (string, string, error) {
-	const contentType = "text/plain"
-
-	fileInfo, err := os.Stat(f)
-	if err != nil {
-		return "", "", fmt.Errorf("invalid filepath. '%v' file does exist. %w", f, err)
-	}
-
-	url := fmt.Sprintf(cfg.UploadURL, cfg.APIKey)
-
-	rq, err := http.NewRequest("POST", url, strings.NewReader(fmt.Sprintf(`{"file":{"display_name":"%v"}}`, fileInfo.Name())))
-	if err != nil {
-		return "", "", fmt.Errorf("unable to create start-upload request. %w", err)
-	}
-
-	rq.Header.Set("X-Goog-Upload-Protocol", "resumable")
-	rq.Header.Set("X-Goog-Upload-Command", "start")
-	rq.Header.Set("X-Goog-Upload-Header-Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
-	rq.Header.Set("X-Goog-Upload-Header-Content-Type", contentType)
-	rq.Header.Set("Content-Type", "application/json")
-
-	LogPrintf("start_upload_url=%+v start_upload_request=%+v", url, rq)
-
-	rs, err := http.DefaultClient.Do(rq)
-	if err != nil {
-		return "", "", fmt.Errorf("error starting file upload. %w", err)
-	}
-	defer rs.Body.Close()
-
-	body, _ := io.ReadAll(rs.Body)
-	LogPrintf("start_upload_response=%q", string(body))
-
-	if rs.StatusCode != http.StatusOK {
-		return "", "", fmt.Errorf("start-upload request failed with status code %v. %v", rs.StatusCode, string(body))
-	}
-
-	uploadURL := rs.Header.Get("X-Goog-Upload-Url")
-	if uploadURL == "" {
-		return "", "", fmt.Errorf("upload url not found in start-upload response header of 'x-goog-upload-url'")
-	}
-
-	file, err := os.Open(f)
-	if err != nil {
-		return "", "", fmt.Errorf("unable to open file '%v' for upload. %w", f, err)
-	}
-	defer file.Close()
-
-	rq, err = http.NewRequest("POST", uploadURL, file) // Use the file as the request body
-	if err != nil {
-		return "", "", fmt.Errorf("unable to create upload-request. %w", err)
-	}
-
-	rq.Header.Set("Content-Length", strconv.FormatInt(fileInfo.Size(), 10))
-	rq.Header.Set("X-Goog-Upload-Offset", "0")
-	rq.Header.Set("X-Goog-Upload-Command", "upload, finalize")
-
-	LogPrintf("upload_url=%v upload_request=%+v", uploadURL, rq)
-
-	rs, err = http.DefaultClient.Do(rq)
-	if err != nil {
-		return "", "", fmt.Errorf("error during upload-request. %w", err)
-	}
-	defer rs.Body.Close()
-
-	body, err = io.ReadAll(rs.Body)
-	LogPrintf("upload_response=%q", string(body))
-
-	if rs.StatusCode != http.StatusOK || err != nil {
-		return "", "", fmt.Errorf("upload-request failed with status code %v. error: %w. body: %v", rs.StatusCode, err, string(body))
-	}
-
-	uploadResponse := struct {
-		File struct {
-			Name        string `json:"name"`
-			DisplayName string `json:"displayName"`
-			MimeType    string `json:"mimeType"`
-			SizeBytes   string `json:"sizeBytes"`
-			CreateTime  string `json:"createTime"`
-			UpdateTime  string `json:"updateTime"`
-			URI         string `json:"uri"`
-		} `json:"file"`
-	}{}
-
-	if err = json.Unmarshal(body, &uploadResponse); err != nil {
-		return "", "", fmt.Errorf("unable to marshal upload-request response. %w", err)
-	}
-
-	LogPrintf("start_upload_request=%+v", rq)
-
-	return uploadResponse.File.URI, contentType, nil
 }

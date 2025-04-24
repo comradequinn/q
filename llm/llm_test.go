@@ -42,8 +42,8 @@ func TestLLM(t *testing.T) {
 	}
 
 	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("model") != llm.ModelGeminiFlash {
-			t.Fatalf("expected model to be %v. got %v", llm.ModelGeminiFlash, r.URL.Query()["model"][0])
+		if r.URL.Query().Get("model") != llm.Models.Flash {
+			t.Fatalf("expected model to be %v. got %v", llm.Models.Flash, r.URL.Query()["model"][0])
 		}
 
 		if r.URL.Query().Get("api-key") != "test=api-key" {
@@ -65,7 +65,7 @@ func TestLLM(t *testing.T) {
 		APIURL:        svr.URL + "/test-url/?model=%v&api-key=%v",
 		ResponseStyle: "test-style",
 		SystemPrompt:  "test-system-prompt",
-		Model:         llm.ModelGeminiFlash,
+		Model:         llm.Models.Flash,
 		MaxTokens:     1000,
 		Temperature:   1.0,
 		TopP:          1.0,
@@ -74,6 +74,7 @@ func TestLLM(t *testing.T) {
 			Location:    "test-location",
 			Description: "test-description",
 		},
+		DebugPrintf: func(string, ...any) {},
 	}
 
 	prompt := llm.Prompt{

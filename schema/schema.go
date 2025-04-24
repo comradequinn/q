@@ -12,8 +12,8 @@ type (
 
 // Build takes a schema definition of the forms
 //
-//	name:type,...n
-//	name:type:description,...n
+//	name:type|...n
+//	name:type:description|...n
 //
 // and builds the equivalent OpenAPI schema JSON from it
 func Build(definition string) (JSON, error) {
@@ -28,10 +28,10 @@ func Build(definition string) (JSON, error) {
 
 	properties := schema["properties"].(map[string]any)
 
-	for _, field := range strings.Split(definition, ",") {
+	for _, field := range strings.Split(definition, "|") {
 		field = strings.TrimSpace(field)
 		if field == "" {
-			return "", fmt.Errorf("missing field definition. expected 'name:type,...' or 'name:type:description,...'. got empty string in %q", definition)
+			return "", fmt.Errorf("missing field definition. expected 'name:type|...' or 'name:type:description|...'. got empty string in %q", definition)
 		}
 
 		attributes := strings.Split(field, ":")
