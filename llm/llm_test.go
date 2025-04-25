@@ -115,7 +115,7 @@ func TestLLM(t *testing.T) {
 			data, _ := actualRq.GenerationConfig.ResponseSchema.MarshalJSON()
 			assert(t, string(data) == prompt.Schema, "expected response schema to be %v. got %v", prompt.Schema, string(data))
 		} else {
-			assert(t, actualRq.GenerationConfig.ResponseMimeType == "", "expected response mime type to be empty string when no response schema specified. got %v")
+			assert(t, actualRq.GenerationConfig.ResponseMimeType == "text/plain", "expected response mime type to be text/plain when no response schema specified. got %v", actualRq.GenerationConfig.ResponseMimeType)
 		}
 
 		systemPrompt := actualRq.SystemInstruction.Parts[0].Text

@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/comradequinn/q/cfg"
 	"github.com/comradequinn/q/cli"
@@ -33,12 +34,13 @@ func main() {
 
 	homeDir, _ := os.UserHomeDir()
 	version := flag.Bool("version", false, "print the version")
-	versionShort := flag.Bool("v", false, "print the version")
+	versionShort := flag.Bool("v", false, "shortform of --version")
 	script := flag.Bool("script", false, "supress activity indicators, such as spinners, to better support piping stdout into other utils when scripting")
-	scriptShort := flag.Bool("s", false, "supress activity indicators, such as spinners, to better support piping stdout into other utils when scripting")
-	grounding := flag.Bool("grounding", true, "enable grounding with search")
+	scriptShort := flag.Bool("s", false, "shortform of --script")
+	disableGrounding := flag.Bool("no-grounding", false, "disable grounding with search")
 	schemaDefinition := flag.String("schema", "", "a schema that defines the required response format. either in the form `name:type:[description],...n` or as a json-form open-api schema. grounding with search must be disabled to use a schema")
 	debug := flag.Bool("debug", false, "enable debug output")
+	stats := flag.Bool("stats", false, "print count of tokens used")
 	appDir := flag.String("app-dir", path.Join(homeDir, "."+app), fmt.Sprintf("location of the %v app (directory", app))
 	configure := flag.Bool("config", false, "reset or initialise the configuration")
 	model := flag.String("model", "", "the specific model to use")
@@ -52,19 +54,21 @@ func main() {
 		"You will not use markdown syntax in your responses as this is not rendered well in terminal output. However you may use clear, plain text formatting that can be read easily and immediately by a human, "+
 		"such as using dashes for list delimiters. All answers should be factually correct and you should take caution regarding hallucinations. You should only answer the specific question given; do not proactively "+
 		"include additional information that is not directly relevant to the question. ", "the base system prompt to use")
-	file := flag.String("file", "", "the path to a file to include in the prompt")
-	fileShort := flag.String("f", "", "the path to a file to include in the prompt")
-	newSession := flag.Bool("new", false, "save any existing session and start a new one (also -n)")
-	newSessionShort := flag.Bool("n", false, "save any existing session and start a new one (also --new)")
-	listSessions := flag.Bool("list", false, "list all saved sessions by id (also -l)")
-	listSessionsShort := flag.Bool("l", false, "list all saved sessions by id (also --list)")
-	restoreSession := flag.Int("restore", 0, "the session id to restore (also -r)")
-	restoreSessionShort := flag.Int("r", 0, "the session id to restore (also --restore)")
+	file := flag.String("files", "", "a comma separated list of files to attach to the prompt")
+	fileShort := flag.String("f", "", "shortform of --files")
+	newSession := flag.Bool("new", false, "save any existing session and start a new one")
+	newSessionShort := flag.Bool("n", false, "shortform of --new")
+	listSessions := flag.Bool("list", false, "list all sessions by id")
+	listSessionsShort := flag.Bool("l", false, "shortform of --list")
+	restoreSession := flag.Int("restore", 0, "the session id to restore")
+	restoreSessionShort := flag.Int("r", 0, "shortform of --restore")
 	deleteSession := flag.Int("delete", 0, "the session id to delete")
-	deleteSessionShort := flag.Int("d", 0, "the session id to delete")
+	deleteSessionShort := flag.Int("d", 0, "shortform of --delete")
 	deleteAllSessions := flag.Bool("delete-all", false, "delete all session data")
 
 	flag.Parse()
+
+	scriptMode := *script || *scriptShort
 
 	config, err := cfg.Read(*appDir)
 	if err != nil {
@@ -116,7 +120,7 @@ func main() {
 
 	var stopSpinner = func() {}
 	{
-		if !*script && !*scriptShort {
+		if !scriptMode {
 			stopSpinner = cli.Spin()
 		}
 	}
@@ -138,6 +142,16 @@ func main() {
 		}
 		if *flashModel {
 			useModel = llm.Models.Flash
+		}
+	}
+
+	files := []string{}
+	{
+		if filePattern := *file + *fileShort; filePattern != "" {
+			files = strings.Split(filePattern, ",")
+			for i := range files {
+				files[i] = strings.TrimSpace(files[i])
+			}
 		}
 	}
 
@@ -166,10 +180,10 @@ func main() {
 		},
 		llm.Prompt{
 			Text:      prompt,
-			File:      *file + *fileShort,
+			Files:     files,
 			History:   messages,
 			Schema:    schema,
-			Grounding: *grounding,
+			Grounding: !*disableGrounding,
 		})
 
 	if err != nil {
@@ -177,15 +191,18 @@ func main() {
 	}
 
 	if err := session.Write(*appDir, session.Entry{
-		Prompt:       prompt,
-		Response:     rs.Text,
-		FileURI:      rs.File.URI,
-		FileMIMEType: rs.File.MIMEType,
+		Prompt:   prompt,
+		Response: rs.Text,
+		Files:    rs.Files,
 	}); err != nil {
 		printfFatal("unable to update session. %v", err)
 	}
 
 	stopSpinner()
 
-	fmt.Printf("%v\n", rs.Text)
+	fmt.Printf("%v\n\n", rs.Text)
+
+	if *stats {
+		os.Stderr.WriteString(fmt.Sprintf("STATS\n-system-prompt-bytes=%v\n-prompt-bytes=%v\n-response-bytes=%v\n-tokens=%v\n-files=%v\n", len(*systemPrompt), len(prompt), len(rs.Text), rs.Tokens, len(rs.Files)))
+	}
 }

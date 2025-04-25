@@ -34,25 +34,25 @@ type (
 	Prompt struct {
 		History   []Message
 		Text      string
-		File      string
+		Files     []string
 		Schema    string
 		Grounding bool
 	}
 	FileReference struct {
-		URI      string
-		MIMEType string
+		URI      string `json:"uri"`
+		MIMEType string `json:"mimeType"`
+		Label    string `json:"label"`
 	}
 	Response struct {
 		Tokens int
 		Text   string
-		File   FileReference
+		Files  []FileReference
 	}
 	Role    string
 	Message struct {
-		Role         Role   `json:"role,omitzero"`
-		Text         string `json:"text,omitzero"`
-		FileURI      string `json:"fileURI,omitzero"`
-		FileMIMEType string `json:"fileMIMEType,omitzero"`
+		Role  Role            `json:"role"`
+		Text  string          `json:"text"`
+		Files []FileReference `json:"files,omitempty"`
 	}
 )
 
@@ -111,10 +111,12 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		content := schema.Content{
 			Role:  string(message.Role),
 			Parts: []schema.Part{{Text: message.Text}}}
-		if message.FileURI != "" {
-			content.Parts = append(content.Parts, schema.Part{
-				File: &schema.FileData{URI: message.FileURI, MIMEType: message.FileMIMEType},
-			})
+		if len(message.Files) > 0 {
+			for _, fileReference := range message.Files {
+				content.Parts = append(content.Parts, schema.Part{
+					File: &schema.FileData{URI: fileReference.URI, MIMEType: fileReference.MIMEType},
+				})
+			}
 		}
 
 		contents = append(contents, content)
@@ -128,22 +130,24 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 	}
 
 	var (
-		resourceRef resource.Reference
-		err         error
+		resourceRefs []resource.Reference
+		err          error
 	)
 
-	if prompt.File != "" {
-		resourceRef, err = resource.Upload(resource.UploadRequest{
-			URL:  cfg.UploadURL,
-			Key:  cfg.APIKey,
-			File: prompt.File,
-		}, cfg.DebugPrintf)
+	if len(prompt.Files) > 0 {
+		for _, f := range prompt.Files {
+			resourceRef, err := resource.Upload(resource.UploadRequest{
+				URL:  cfg.UploadURL,
+				Key:  cfg.APIKey,
+				File: f,
+			}, cfg.DebugPrintf)
 
-		if err != nil {
-			return Response{}, fmt.Errorf("unable to upload file to gemini api. %v", err)
+			if err != nil {
+				return Response{}, fmt.Errorf("unable to upload file '%v' to gemini api. %v", f, err)
+			}
+			content.Parts = append(content.Parts, schema.Part{File: &schema.FileData{URI: resourceRef.URI, MIMEType: resourceRef.MIMEType}})
+			resourceRefs = append(resourceRefs, resourceRef)
 		}
-
-		content.Parts = append(content.Parts, schema.Part{File: &schema.FileData{URI: resourceRef.URI, MIMEType: resourceRef.MIMEType}})
 	}
 
 	contents = append(contents, content)
@@ -161,6 +165,8 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		TopP:            cfg.TopP,
 		MaxOutputTokens: cfg.MaxTokens,
 	}
+
+	generationConfig.ResponseMimeType = "text/plain"
 
 	if prompt.Schema != "" {
 		generationConfig.ResponseMimeType = "application/json"
@@ -220,12 +226,19 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 
 	cfg.DebugPrintf("token_count=%v", response.UsageMetadata.TotalTokenCount)
 
+	files := make([]FileReference, 0, len(resourceRefs))
+
+	for _, resourceRef := range resourceRefs {
+		files = append(files, FileReference{
+			URI:      resourceRef.URI,
+			MIMEType: resourceRef.MIMEType,
+			Label:    resourceRef.Label,
+		})
+	}
+
 	return Response{
 		Tokens: response.UsageMetadata.TotalTokenCount,
 		Text:   sb.String(),
-		File: FileReference{
-			URI:      resourceRef.URI,
-			MIMEType: resourceRef.MIMEType,
-		},
+		Files:  files,
 	}, nil
 }

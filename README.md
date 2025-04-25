@@ -2,7 +2,9 @@
 
 Named `q` (from `query` or `question`), `q` is a command-line `llm` interface built on Google's `Gemini 2.5` models. 
 
-Using `q` greatly simplifies integrating LLMs into CI pipelines, scripts or other automation. For terminal users, `q` is also a simple, but powerful chat-based assistant.
+Using `q` greatly simplifies integrating LLMs into CI pipelines, scripts or other automation. 
+
+For terminal users, `q` acts as a simple but fully-featured interactive assistant.
 
 ## Features
 
@@ -12,16 +14,17 @@ Using `q` provides the following features:
   * Non-blocking, yet conversational, prompting allowing natural, fluid usage within the terminal environment
     * The avoidance of a dedicated `repl` to define a session leaves the terminal free to execute other commands between prompts while still maintaining the conversational context
   * Session management enables easy stashing of, or switching to, the currently active, or a previously stashed session
-    * Making it simple to quickly task switch without permanently losing the current conversational context
-* Fully scriptable and ideal for use in automation and `ci` pipelines
+    * This makes it simple to quickly task switch without permanently losing the current conversational context
+* Fully scriptable and ideal for use in automation and CI pipelines
   * All configuration and session history is file or flag based
   * API Keys are provided via environment variables
   * Support for structured responses using custom `schemas`
     * Basic schemas can be defined using a simple schema definition language
-    * Complex schemas can be using OpenAPI Schema objects expressed as JSON and optionally defined in dedicated files for ease of management
+    * Complex schemas can be defined using OpenAPI Schema objects expressed as JSON (either inline or in dedicated files)
   * Interactive-mode activity indicators can be disabled to aid effective redirection and piping
-* Support for attaching files to prompts
-  * Interrogate code, markdown and text files
+* Full support for attaching files and directories to prompts
+  * Interrogate individual code, markdown and text files or entire workspaces
+  * Describe image files and PDFs
 * Personalisation of responses
   * Specify persistent, personal or contextual information and style preferences to tailor your responses
 * Model configuration
@@ -53,7 +56,7 @@ export GEMINI_API_KEY="myPriVatEApI_keY_1234567890"
 
 ### Removal
 
-To remove `q`, delete the binary from `/usr/bin` (or the location it was originally to). You may also wish to delete its application directory that stores user preferences and chat history; this is located at `~/.q`.
+To remove `q`, delete the binary from `/usr/bin` (or the location it was originally installed to). You may also wish to delete its application directory. This stores user preferences and session history and is located at `~/.q`.
 
 ## Quick Start
 
@@ -77,18 +80,16 @@ q --list # show current and active sessions, the asterix indicates the active se
 >>   #1 (April 24 2025): 'how do i list all files in my current directory?'
 >> * #2 (April 24 2025): 'what is the weather like in london tomorrow?'
 
-q --restore 1 # switch the active session back to the early topic (-r can be used as a shortform)
+q --restore 1 # switch the active session back to the earlier topic (-r can be used as a shortform)
 
 q "I want file permissions in the output" # ask a follow up question relying on context from the restored session
 # >> to include file permissions in the directory listing output... (response ommitted for brevity)
 
-q --new --file ./main.go "Summarise this code for me" # ask a question based on the file contents (-f can be used as a shortform)
+q --new --files ./main.go "Summarise this code for me" # attach a file to the prompt and ask a question related to its contents (-f can be used as a shortform)
 # >> This file contains badly organised and incomprehensible code, even to an LLM... (response ommitted for brevity)
 ```
 
 ### Scripting
-
-## Usage
 
 The following example describes how to use `q` to perform a basic, automated code review of a given file.
 
@@ -96,7 +97,7 @@ For clarity, note that the below command...
 
 ```bash
 # start a new q session in script mode (supresses output, -s can also be used). include the main.go file in the prompt and specify a schema for the response
-q --new --script --file ./main.go --schema='quality:integer:1 excellent, 5 terrible|reason:string:brief justification for the quality grade' "perform a code review on this file"
+q --new --script --files ./main.go --schema='quality:integer:1 excellent, 5 terrible|reason:string:brief justification for the quality grade' "perform a code review on this file"
 ```
 
 ... will result in the following...
@@ -121,6 +122,8 @@ echo "$RESULT" | jq -r '.[0]'
 # exit with a return code derived from whether the minimum required quality was met
 exit "$(echo "$RESULT" | jq -r '.[1]')" 
 ```
+
+## Usage
 
 ### Prompting
 
@@ -218,18 +221,56 @@ Any such information you provide is only stored on the host machine and included
 
 ### Attaching Files
 
-To attach a file to your prompt, use the `--file` (or `-f`) parameter passing the path to the file to include. An example is shown below.
+To attach files to your prompt, use the `--files` (or `-f`) parameter passing the path to the file to include. To include multiple files, separate them with a comma, Some examples are shown below.
 
 ```bash
-q -n --file some-code.go "summarise this file"
+# attach a single file
+q -n --files "holday-fun.png" "what's in this image?"
+```
+
+```bash
+# attach multiple files, spaces are optional but can aid readability when listing many files explicitly. here we use the shorform of --files; -f
+q -n -f "some-code.go, somedir/some-more-code.go, yet-more-code.go" "summarise these files"
+```
+
+When attaching a large number of files or the contents of multiple directories, `command substitution` can be used to simplify creating the `files` argument. An example is shown below of including all `*.go` files in the current workspace (that being the working directory and below).
+
+```bash
+# find all files in the current workspace and concatonate them into a single string
+WORKSPACE="$(find . -name "*.go" | paste -s -d ",")"
+# attach the files to the prompt
+q -n -f "$WORKSPACE" "create a table of file names and a very brief content summary for these files"
+```
+
+When run on the `q` repo, the above will produce something similar to the below.
+
+```text
+ 
+File Name             | Summary
+--------------------------|--------------------------------------------------
+session/session.go        | Manages chat sessions, including reading, writing, listing, stashing, restoring, and deleting sessions.
+session/session_test.go   | Contains unit tests for the session management functions.
+session/session_internal.go| Internal helper functions for session management, like getting directory paths and opening files.
+llm/llm_test.go           | Contains unit tests for the LLM interaction functions.
+llm/llm.go                | Handles interaction with the LLM API, including generating responses and managing file uploads.
+llm/internal/schema/schema.go| Defines the Go structs for the LLM API request and response schemas.
+resource/resource.go      | Handles uploading files to the LLM API.
+cli/spin.go               | Provides a simple terminal spinner function.
+cli/list.go               | Displays a list of chat sessions in the terminal.
+cli/configure.go          | Handles user configuration input via the terminal.
+schema/schema_test.go     | Contains unit tests for the schema building function.
+schema/schema.go          | Builds OpenAPI schema JSON from a simplified definition string.
+cfg/cfg_test.go           | Contains unit tests for the configuration reading and saving functions.
+cfg/cfg.go                | Handles reading and saving application configuration, including API key and user preferences.
+main.go                   | The main entry point for the CLI application, parses flags, handles commands, and orchestrates LLM interaction and session management.
 ```
 
 ### Grounding
 
-Grounding is the term for verifying LLM responses with an external source, that source being `Google Search` in the case of `q`. By default this feature is enabled, but it can be disabled with `--grounding=false` as shown below.
+Grounding is the term for verifying LLM responses with an external source, that source being `Google Search` in the case of `q`. By default this feature is enabled, but it can be disabled with the `--no-grounding`flag, as shown below.
 
 ```bash
-q -n --grounding=false "how do I list all files in my current directory?"
+q -n --no-grounding "how do I list all files in my current directory?"
 ```
 
 ### Scripting
@@ -303,7 +344,7 @@ This will return a response similar to the following.
 }
 ```
 
-It may be preferable to store complex `schemas` in a file rather than declaring them inline. Standard command substitution techniques can be used to enable this. The example below shows how the same `schema` as defined inline above can instead be read from the file `./schema.json`.
+It may be preferable to store complex `schemas` in a file rather than declaring them inline. Standard `command substitution` techniques can be used to enable this. The example below shows how the same `schema` as defined inline above can instead be read from the file `./schema.json`.
 
 ```bash
 q -n --schema="$(cat ./schema.json)" "pick a colour of the rainbow"
@@ -319,11 +360,56 @@ q --model 'custom-gemini-exp-model-123' --temperature 0.1 --top-p 0.1 --max-toke
 
 The effect of the above will be to make the responses more determistic and favour correctness over 'imagination'. 
 
-While the effects of `top-p` and `temperature` are out of the scope of this document, briefly and simplisticly; when the LLM is selecting the next token to include in its response, the value of `top-p` restricts the pool of potential next tokens that can be selected to the most probable subset. This derived by selecting the most probable, one by one, until the cumulative probabilty exceeds the value of `p`. The `temperature` value is then used to weight the probabilities in that resulting subset to either level them out or emphasise their differences; making it less or more likely that the highest probability candidate will be chosen.
+While the effects of `top-p` and `temperature` are out of the scope of this document, briefly and simplisticly; when the LLM is selecting the next token to include in its response, the value of `top-p` restricts the pool of potential next tokens that can be selected to the most probable subset. This is derived by selecting the most probable, one by one, until the cumulative probabilty exceeds the value of `p`. The `temperature` value is then used to weight the probabilities in that resulting subset to either level them out or emphasise their differences; making it less or more likely that the highest probability candidate will be chosen.
+
+## Reporting on Usage
+
+Running `q` with the `--stats` flag will cause usage data to be written to `stderr`. This allows it be processed seperately from the main response. An example is shown below.
+
+```bash
+q -n --stats "what is the weather like next week?"
+```
+
+This will produce output similar to the below
+
+```
+The weather will be very hot next week
+
+STATS
+- system-prompt-bytes=619
+- prompt-bytes=35
+- response-bytes=944
+- tokens=955
+- files=0
+```
+
+To redirect the `stats` component to a file, use standard redirection techniques, such as in the below example, where `stderr` is redirected to a local file.
+
+```bash
+q -n --stats "what is the weather like next week?" 2> stats.txt
+```
+
+This will produce output similar to the below
+
+```
+The weather will be very hot next week
+```
+
+And the contents of `stats.txt` will be similar to the following.
+
+```bash
+# file: stats.txt
+STATS
+- system-prompt-bytes=619
+- prompt-bytes=35
+- response-bytes=944
+- tokens=955
+- files=0
+```
 
 ## Debugging
 
-To inspect the underlying Gemini API traffic that is generated by `q`, run it with the `--debug` flag. Other arguments can be passed as normal however with the `--debug` flag specified the API payloads will also be printed to `stderr`. As the primary responses are written to `stdout` the debug component can easily be separated from the main content with standard redirection techniques.
+To inspect the underlying Gemini API traffic that is generated by `q`, run it with the `--debug` flag. Other arguments can be passed normally, however, with the `--debug` flag specified the API payloads will also be printed to `stderr`. As the primary responses are written to `stdout` the debug component can easily be separated from the main content, for independent analysis, using standard `redirection` techniques.
 
 
 

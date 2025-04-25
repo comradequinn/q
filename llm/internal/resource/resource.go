@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -19,15 +20,34 @@ type (
 	Reference struct {
 		URI      string
 		MIMEType string
+		Label    string
 	}
 )
 
+var mimeTypes = map[string]string{
+	".jpg":  "image/jpeg",
+	".jpeg": "image/jpeg",
+	".png":  "image/png",
+	".gif":  "image/gif",
+	".bmp":  "image/bmp",
+	".webp": "image/webp",
+	".svg":  "image/svg+xml",
+	".tif":  "image/tiff",
+	".tiff": "image/tiff",
+	".ico":  "image/x-icon",
+	".pdf":  "application/pdf",
+}
+
 func Upload(uploadRequest UploadRequest, debugPrintf func(format string, v ...any)) (Reference, error) {
-	const contentType = "text/plain"
+
+	contentType := mimeTypes[filepath.Ext(uploadRequest.File)]
+	if contentType == "" {
+		contentType = "text/plain"
+	}
 
 	fileInfo, err := os.Stat(uploadRequest.File)
 	if err != nil {
-		return Reference{}, fmt.Errorf("invalid filepath. '%v' file does exist. %w", uploadRequest.File, err)
+		return Reference{}, fmt.Errorf("invalid filepath. '%v' file does not exist. %w", uploadRequest.File, err)
 	}
 
 	url := fmt.Sprintf(uploadRequest.URL, uploadRequest.Key)
@@ -114,5 +134,6 @@ func Upload(uploadRequest UploadRequest, debugPrintf func(format string, v ...an
 	return Reference{
 		URI:      uploadResponse.File.URI,
 		MIMEType: uploadResponse.File.MimeType,
+		Label:    uploadResponse.File.DisplayName,
 	}, nil
 }

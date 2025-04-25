@@ -15,10 +15,9 @@ import (
 
 type (
 	Entry struct {
-		Prompt       string
-		FileURI      string
-		FileMIMEType string
-		Response     string
+		Prompt   string
+		Files    []llm.FileReference
+		Response string
 	}
 	Record struct {
 		ID        int
@@ -51,10 +50,9 @@ func Write(appDir string, entry Entry) error {
 	jsonEncoder.SetIndent("", "  ")
 
 	if err := jsonEncoder.Encode(append(messages, llm.Message{
-		Role:         llm.RoleUser,
-		Text:         entry.Prompt,
-		FileURI:      entry.FileURI,
-		FileMIMEType: entry.FileMIMEType,
+		Role:  llm.RoleUser,
+		Text:  entry.Prompt,
+		Files: entry.Files,
 	}, llm.Message{
 		Role: llm.RoleModel,
 		Text: entry.Response,
