@@ -1,22 +1,24 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"path"
+	"runtime"
 	"strings"
 
-	"github.com/comradequinn/q/cfg"
-	"github.com/comradequinn/q/cli"
-	"github.com/comradequinn/q/llm"
-	"github.com/comradequinn/q/schema"
-	"github.com/comradequinn/q/session"
+	"github.com/comradequinn/gen/cfg"
+	"github.com/comradequinn/gen/cli"
+	"github.com/comradequinn/gen/llm"
+	"github.com/comradequinn/gen/schema"
+	"github.com/comradequinn/gen/session"
 )
 
 const (
-	app = "q"
+	app = "gen"
 )
 
 var (
@@ -29,8 +31,6 @@ func main() {
 		fmt.Printf(format+"\n", v...)
 		os.Exit(1)
 	}
-
-	log.SetOutput(os.Stderr)
 
 	homeDir, _ := os.UserHomeDir()
 	version := flag.Bool("version", false, "print the version")
@@ -50,10 +50,12 @@ func main() {
 	topP := flag.Float64("top-p", 0.2, "the top-p setting for the model")
 	apiURL := flag.String("api-url", "https://generativelanguage.googleapis.com/v1beta/models/%v:generateContent?key=%v", "the url for the gemini api. it must expose two placeholders; one for the model and a second for the api key")
 	uploadURL := flag.String("upload-url", "https://generativelanguage.googleapis.com/upload/v1beta/files?key=%v", "the url for the gemini api file upload url. it must expose a placeholder for the api key")
-	systemPrompt := flag.String("system-prompt", "Your responses are printed to a linux terminal. You will ensure those responses are concise and easily rendered in a linux terminal. "+
-		"You will not use markdown syntax in your responses as this is not rendered well in terminal output. However you may use clear, plain text formatting that can be read easily and immediately by a human, "+
-		"such as using dashes for list delimiters. All answers should be factually correct and you should take caution regarding hallucinations. You should only answer the specific question given; do not proactively "+
-		"include additional information that is not directly relevant to the question. ", "the base system prompt to use")
+	systemPrompt := flag.String("system-prompt",
+		fmt.Sprintf("You are a command line assistant utility named '%v' running in a terminal on the OS '%v'. You factor that into the format and content of your responses. You always ensure your responses are concise and "+
+			"easily rendered in such a terminal. You do not use complex markdown syntax in your responses as this is not rendered well in terminal output. You do use clear, plain text formatting that can be easily read and "+
+			"by a human; such as using dashes for list delimiters. You always ensure that, to the extent that you are reasonably able, that your answers are factually correct and you take caution regarding hallucinations. "+
+			"You only answer the specific question given and do not proactively include additional information that is not directly relevant to that question. ", app, runtime.GOOS),
+		"the base system prompt to use")
 	file := flag.String("files", "", "a comma separated list of files to attach to the prompt")
 	fileShort := flag.String("f", "", "shortform of --files")
 	newSession := flag.Bool("new", false, "save any existing session and start a new one")
@@ -67,6 +69,14 @@ func main() {
 	deleteAllSessions := flag.Bool("delete-all", false, "delete all session data")
 
 	flag.Parse()
+
+	logLevel := slog.LevelInfo
+
+	if *debug {
+		logLevel = slog.LevelDebug
+	}
+
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel})))
 
 	scriptMode := *script || *scriptShort
 
@@ -171,12 +181,7 @@ func main() {
 				Location:    config.User.Location,
 				Description: config.User.Description,
 			},
-			DebugPrintf: func() func(string, ...any) {
-				if !*debug {
-					return func(string, ...any) {}
-				}
-				return log.Printf
-			}(),
+			DebugPrintf: slog.Debug,
 		},
 		llm.Prompt{
 			Text:      prompt,
@@ -203,6 +208,14 @@ func main() {
 	fmt.Printf("%v\n\n", rs.Text)
 
 	if *stats {
-		os.Stderr.WriteString(fmt.Sprintf("STATS\n-system-prompt-bytes=%v\n-prompt-bytes=%v\n-response-bytes=%v\n-tokens=%v\n-files=%v\n", len(*systemPrompt), len(prompt), len(rs.Text), rs.Tokens, len(rs.Files)))
+		json.NewEncoder(os.Stderr).Encode(map[string]map[string]string{
+			"stats": {
+				"systemPromptBytes": fmt.Sprintf("%v", len(*systemPrompt)),
+				"promptBytes":       fmt.Sprintf("%v", len(prompt)),
+				"responseBytes":     fmt.Sprintf("%v", len(rs.Text)),
+				"tokens":            fmt.Sprintf("%v", rs.Tokens),
+				"files":             fmt.Sprintf("%v", len(rs.Files)),
+			},
+		})
 	}
 }

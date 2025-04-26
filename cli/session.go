@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/comradequinn/q/session"
+	"github.com/comradequinn/gen/session"
 )
 
 // ListSessions displays the current and any saved sessions

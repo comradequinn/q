@@ -1,3 +1,3 @@
-module github.com/comradequinn/q
+module github.com/comradequinn/gen
 
 go 1.24

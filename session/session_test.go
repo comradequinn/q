@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/comradequinn/q/session"
+	"github.com/comradequinn/gen/session"
 )
 
 func TestSession(t *testing.T) {

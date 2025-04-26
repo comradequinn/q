@@ -38,7 +38,7 @@ var mimeTypes = map[string]string{
 	".pdf":  "application/pdf",
 }
 
-func Upload(uploadRequest UploadRequest, debugPrintf func(format string, v ...any)) (Reference, error) {
+func Upload(uploadRequest UploadRequest, debugPrintf func(msg string, args ...any)) (Reference, error) {
 
 	contentType := mimeTypes[filepath.Ext(uploadRequest.File)]
 	if contentType == "" {
@@ -63,7 +63,7 @@ func Upload(uploadRequest UploadRequest, debugPrintf func(format string, v ...an
 	rq.Header.Set("X-Goog-Upload-Header-Content-Type", contentType)
 	rq.Header.Set("Content-Type", "application/json")
 
-	debugPrintf("start_upload_url=%+v start_upload_request=%+v", url, rq)
+	debugPrintf("sending start upload request", "type", "start_upload_request", "url", url, "headers", rq.Header)
 
 	rs, err := http.DefaultClient.Do(rq)
 	if err != nil {
@@ -72,7 +72,8 @@ func Upload(uploadRequest UploadRequest, debugPrintf func(format string, v ...an
 	defer rs.Body.Close()
 
 	body, _ := io.ReadAll(rs.Body)
-	debugPrintf("start_upload_response=%q", string(body))
+
+	debugPrintf("received start upload response", "type", "start_upload_response", "status", rs.Status, "response", string(body))
 
 	if rs.StatusCode != http.StatusOK {
 		return Reference{}, fmt.Errorf("start-upload request failed with status code %v. %v", rs.StatusCode, string(body))
@@ -98,7 +99,7 @@ func Upload(uploadRequest UploadRequest, debugPrintf func(format string, v ...an
 	rq.Header.Set("X-Goog-Upload-Offset", "0")
 	rq.Header.Set("X-Goog-Upload-Command", "upload, finalize")
 
-	debugPrintf("upload_url=%v upload_request=%+v", uploadURL, rq)
+	debugPrintf("sending upload request", "type", "upload_request", "url", url, "headers", rq.Header, "bytes", strconv.FormatInt(fileInfo.Size(), 10))
 
 	rs, err = http.DefaultClient.Do(rq)
 	if err != nil {
@@ -107,7 +108,8 @@ func Upload(uploadRequest UploadRequest, debugPrintf func(format string, v ...an
 	defer rs.Body.Close()
 
 	body, err = io.ReadAll(rs.Body)
-	debugPrintf("upload_response=%q", string(body))
+
+	debugPrintf("received upload response", "type", "upload_response", "status", rs.Status, "response", string(body))
 
 	if rs.StatusCode != http.StatusOK || err != nil {
 		return Reference{}, fmt.Errorf("upload-request failed with status code %v. error: %w. body: %v", rs.StatusCode, err, string(body))
@@ -128,8 +130,6 @@ func Upload(uploadRequest UploadRequest, debugPrintf func(format string, v ...an
 	if err = json.Unmarshal(body, &uploadResponse); err != nil {
 		return Reference{}, fmt.Errorf("unable to marshal upload-request response. %w", err)
 	}
-
-	debugPrintf("start_upload_request=%+v", rq)
 
 	return Reference{
 		URI:      uploadResponse.File.URI,

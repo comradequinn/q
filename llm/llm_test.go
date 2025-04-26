@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/comradequinn/q/llm"
-	"github.com/comradequinn/q/llm/internal/schema"
+	"github.com/comradequinn/gen/llm"
+	"github.com/comradequinn/gen/llm/internal/schema"
 )
 
 func TestLLM(t *testing.T) {

@@ -30,3 +30,5 @@ bin
 
 temp.txt
 
+*.log
+

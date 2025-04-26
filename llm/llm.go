@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/comradequinn/q/llm/internal/resource"
-	"github.com/comradequinn/q/llm/internal/schema"
+	"github.com/comradequinn/gen/llm/internal/resource"
+	"github.com/comradequinn/gen/llm/internal/schema"
 )
 
 type (
@@ -24,7 +24,7 @@ type (
 		Temperature   float64
 		TopP          float64
 		User          User
-		DebugPrintf   func(format string, v ...any)
+		DebugPrintf   func(msg string, args ...any)
 	}
 	User struct {
 		Name        string
@@ -186,7 +186,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 	}
 
 	url := fmt.Sprintf(cfg.APIURL, cfg.Model, cfg.APIKey)
-	cfg.DebugPrintf("url=%v request=%q", url, request.Bytes())
+	cfg.DebugPrintf("sending generate request", "type", "generate_request", "url", url, "request", request.Bytes())
 
 	rs, err := http.Post(url, "application/json", &request)
 
@@ -202,7 +202,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		return Response{}, fmt.Errorf("unable to read response body. %w", err)
 	}
 
-	cfg.DebugPrintf("response=%q", string(body))
+	cfg.DebugPrintf("received generate response", "type", "generate_response", "status", rs.Status, "request", string(body))
 
 	if rs.StatusCode != 200 {
 		return Response{}, fmt.Errorf("non-200 status code returned from llm api. %s", body)
@@ -224,7 +224,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		sb.WriteString(part.Text)
 	}
 
-	cfg.DebugPrintf("token_count=%v", response.UsageMetadata.TotalTokenCount)
+	cfg.DebugPrintf("token count value reported", "type", "report", "token_count", response.UsageMetadata.TotalTokenCount)
 
 	files := make([]FileReference, 0, len(resourceRefs))
 

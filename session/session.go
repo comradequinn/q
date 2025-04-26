@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/comradequinn/q/llm"
+	"github.com/comradequinn/gen/llm"
 )
 
 type (

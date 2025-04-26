@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/comradequinn/q/cfg"
+	"github.com/comradequinn/gen/cfg"
 )
 
 // Configure populates the specified configuration struct with data requested from the user

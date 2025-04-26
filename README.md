@@ -1,14 +1,14 @@
-# q
+# gen
 
-Named `q` (from `query` or `question`), `q` is a command-line `llm` interface built on Google's `Gemini 2.5` models. 
+Named `gen` (from `generate`), `gen` is a command-line `llm` interface built on Google's `Gemini 2.5` models. 
 
-Using `q` greatly simplifies integrating LLMs into CI pipelines, scripts or other automation. 
+Using `gen` greatly simplifies integrating LLMs into CI pipelines, scripts or other automation. 
 
-For terminal users, `q` acts as a simple but fully-featured interactive assistant.
+For terminal users, `gen` acts as a simple but fully-featured interactive assistant.
 
 ## Features
 
-Using `q` provides the following features:
+Using `gen` provides the following features:
 
 * Interactive command-line chatbot
   * Non-blocking, yet conversational, prompting allowing natural, fluid usage within the terminal environment
@@ -32,17 +32,17 @@ Using `q` provides the following features:
 
 ## Installation
 
-To install `q`, download the appropriate tarball for your `os` from the [releases](https://github.com/comradequinn/q/releases/) page. Extract the binary and place it somewhere accessible to your `$PATH` variable. 
+To install `gen`, download the appropriate tarball for your `os` from the [releases](https://github.com/comradequinn/gen/releases/) page. Extract the binary and place it somewhere accessible to your `$PATH` variable. 
 
 Optionally, you can use the below script to do that for you.
 
 ```bash
-export VERSION="v1.3.0"; export OS="linux-amd64"; wget "https://github.com/comradequinn/q/releases/download/${VERSION}/q-${VERSION}-${OS}.tar.gz" && tar -xf "q-${VERSION}-${OS}.tar.gz" && rm -f "q-${VERSION}-${OS}.tar.gz" && chmod +x q && sudo mv q /usr/local/bin/
+export VERSION="v1.0.0"; export OS="linux-amd64"; wget "https://github.com/comradequinn/gen/releases/download/${VERSION}/gen-${VERSION}-${OS}.tar.gz" && tar -xf "gen-${VERSION}-${OS}.tar.gz" && rm -f "gen-${VERSION}-${OS}.tar.gz" && chmod +x gen && sudo mv gen /usr/local/bin/
 ```
 
 ### API Keys
 
-In order to use `q` you will require your `Gemini API Key`. If you do not already have one, these are available free from [Google](https://aistudio.google.com/apikey). 
+In order to use `gen` you will require your `Gemini API Key`. If you do not already have one, these are available free from [Google](https://aistudio.google.com/apikey). 
 
 Once you have the key, set and export it as the conventional environment variable for that value, `GEMINI_API_KEY`.
 
@@ -56,48 +56,48 @@ export GEMINI_API_KEY="myPriVatEApI_keY_1234567890"
 
 ### Removal
 
-To remove `q`, delete the binary from `/usr/bin` (or the location it was originally installed to). You may also wish to delete its application directory. This stores user preferences and session history and is located at `~/.q`.
+To remove `gen`, delete the binary from `/usr/bin` (or the location it was originally installed to). You may also wish to delete its application directory. This stores user preferences and session history and is located at `~/.gen`.
 
 ## Quick Start
 
-These examples show typical sequences for the two forms of `q` usage: interactive and scripted. For those familiar with the command line, scripting and LLMs, they are likely enough you to become productive with `q`.
+These examples show typical sequences for the two forms of `gen` usage: interactive and scripted. For those familiar with the command line, scripting and LLMs, they are likely enough you to become productive with `gen`.
 
 ### Interactive Mode
 
-The following example shows the fundamentals of interactive, conversational usage of `q` within a user's terminal
+The following example shows the fundamentals of interactive, conversational usage of `gen` within a user's terminal
 
 ```bash
-q "how do I list all files in my current directory?" # ask a question
+gen "how do I list all files in my current directory?" # ask a question
 # >> to list all files in the current directory run the... (response ommitted for brevity)
 
-q "I want timestamps in the output" # ask a follow up question relying on the previous question for context
+gen "I want timestamps in the output" # ask a follow up question relying on the previous question for context
 # >> to include timestamps in the directory listing output... (response ommitted for brevity)
 
-q --new "What is the weather like in London tomorrow?" # stash the existing conversational context and start a new session (-n can be used as a shortform)
+gen --new "What is the weather like in London tomorrow?" # stash the existing conversational context and start a new session (-n can be used as a shortform)
 # >> In London tomorrow it will be grey and wet... (response ommitted for brevity)
 
-q --list # show current and active sessions, the asterix indicates the active session (-l can be used as a shortform)
+gen --list # show current and active sessions, the asterix indicates the active session (-l can be used as a shortform)
 >>   #1 (April 24 2025): 'how do i list all files in my current directory?'
 >> * #2 (April 24 2025): 'what is the weather like in london tomorrow?'
 
-q --restore 1 # switch the active session back to the earlier topic (-r can be used as a shortform)
+gen --restore 1 # switch the active session back to the earlier topic (-r can be used as a shortform)
 
-q "I want file permissions in the output" # ask a follow up question relying on context from the restored session
+gen "I want file permissions in the output" # ask a follow up question relying on context from the restored session
 # >> to include file permissions in the directory listing output... (response ommitted for brevity)
 
-q --new --files ./main.go "Summarise this code for me" # attach a file to the prompt and ask a question related to its contents (-f can be used as a shortform)
+gen --new --files ./main.go "Summarise this code for me" # attach a file to the prompt and ask a question related to its contents (-f can be used as a shortform)
 # >> This file contains badly organised and incomprehensible code, even to an LLM... (response ommitted for brevity)
 ```
 
 ### Scripting
 
-The following example describes how to use `q` to perform a basic, automated code review of a given file.
+The following example describes how to use `gen` to perform a basic, automated code review of a given file.
 
 For clarity, note that the below command...
 
 ```bash
-# start a new q session in script mode (supresses output, -s can also be used). include the main.go file in the prompt and specify a schema for the response
-q --new --script --files ./main.go --schema='quality:integer:1 excellent, 5 terrible|reason:string:brief justification for the quality grade' "perform a code review on this file"
+# start a new gen session in script mode (supresses output, -s can also be used). include the main.go file in the prompt and specify a schema for the response
+gen --new --script --files ./main.go --schema='quality:integer:1 excellent, 5 terrible|reason:string:brief justification for the quality grade' "perform a code review on this file"
 ```
 
 ... will result in the following...
@@ -113,7 +113,7 @@ Given this understanding, the script below demonstrates how this data can be use
 
 ```bash
 # perform the 'code review' and store the JSON response in a variable
-JSON=$(q -n -s -f ./main.go --schema='quality:integer:1 excellent, 5 terrible|reason:string:brief justification for the quality grade' "perform a code review on this file")
+JSON=$(gen -n -s -f ./main.go --schema='quality:integer:1 excellent, 5 terrible|reason:string:brief justification for the quality grade' "perform a code review on this file")
 # parse the JSON into an array containing either the 'suggested improvements' or 'ok' and the associated exit code based on whether it was an 'ok' result or it required revising
 # - eg '[ 'ok', 0 ] or '[ 'horrific stuff, unreadable...', 1 ]
 RESULT=$(echo "$JSON" | jq -r 'if .quality > 2 then [.reason, 1] else ["ok", 0] end')
@@ -127,10 +127,10 @@ exit "$(echo "$RESULT" | jq -r '.[1]')"
 
 ### Prompting
 
-To chat with `q`, execute it with a prompt
+To chat with `gen`, execute it with a prompt
 
 ```bash
-q "how do I list all files in my current directory?"
+gen "how do I list all files in my current directory?"
 ```
 
 The result of the prompt will be displayed, as shown below.
@@ -143,13 +143,13 @@ ls -a
 This command will display all files, including hidden files (files starting with a dot).
 ```
 
-To ask a follow up question, run `q` again with the required prompt.
+To ask a follow up question, run `gen` again with the required prompt.
 
 ```bash
-q "I need timestamps in the output"
+gen "I need timestamps in the output"
 ```
 
-This will return something similar to the below, note how `q` understood the context of the question in relation to the previous prompt. 
+This will return something similar to the below, note how `gen` understood the context of the question in relation to the previous prompt. 
 
 ```
 To include timestamps in the output of the `ls` command, you can use the `-l` option along with the `--full-time` or `--time-style` options. Here are a few options:
@@ -170,7 +170,7 @@ ls -la --full-time
 This conversational context will continue indefinitely until you start a new session. Starting a new session `stashes` the existing conversational context and begins a new one. It is performed by passing the `--new` (or `-n`) flag in your next prompt. As shown below
 
 ```bash
-q --new "what was my last question?"
+gen --new "what was my last question?"
 ```
 
 This will return something similar to the below, indicating the loss of the previous context.
@@ -181,41 +181,41 @@ I have no memory of past conversations. Therefore, I don't know what your last q
 
 ### Session Management
 
-A session is a thread of prompts and responses with the same context, effectively a conversation. A new session starts whenever `--new` (or `-n`) is passed along with the prompt to `q`. At this point, the previously active session is `stashed` and the passed prompt becomes the start of a new session.
+A session is a thread of prompts and responses with the same context, effectively a conversation. A new session starts whenever `--new` (or `-n`) is passed along with the prompt to `gen`. At this point, the previously active session is `stashed` and the passed prompt becomes the start of a new session.
 
-To view your previously `stashed` sessions, run `q --list` (or `-l`). The sessions will be displayed in date order and include a snippet of the opening text of the prompt for ease of identification. The active session is also included in the output and prefixed with an asterix, in this case record `2`.
+To view your previously `stashed` sessions, run `gen --list` (or `-l`). The sessions will be displayed in date order and include a snippet of the opening text of the prompt for ease of identification. The active session is also included in the output and prefixed with an asterix, in this case record `2`.
 
 ```bash
-q --list
+gen --list
   #1 (April 15 2025): 'how do i list all files in my current directory?'
 * #2 (April 15 2025): 'what was my last question?'
 ```
 
-To restore a previous session, allowing you to continue that conversation as it was where you left off, run `q --restore #id` (or `-r`) where `#id` is the `#ID` in the `q --list` output. For example
+To restore a previous session, allowing you to continue that conversation as it was where you left off, run `gen --restore #id` (or `-r`) where `#id` is the `#ID` in the `gen --list` output. For example
 
 ```bash
-q --restore 1
+gen --restore 1
 ```
 
-Running `q --list` again will now show the below; note how the asterix is now positioned at record `1`
+Running `gen --list` again will now show the below; note how the asterix is now positioned at record `1`
 
 ```bash
-q --list
+gen --list
 * #1 (April 15 2025): 'how do i list all files in my current directory?'
   #2 (April 15 2025): 'what was my last question?'
 ```
 
-Asking the prompt from earlier, of `q "what was my last question?"`, will now return the below, as that context has been restored.
+Asking the prompt from earlier, of `gen "what was my last question?"`, will now return the below, as that context has been restored.
 
 ```
 Your last question was: "I need timestamps in the output".
 ```
 
-To delete a single session, run `q --delete #id` (or `-d #id`) where `#id` is the `#ID` in the `q --list` output. To delete all sessions, run `q --delete-all`
+To delete a single session, run `gen --delete #id` (or `-d #id`) where `#id` is the `#ID` in the `gen --list` output. To delete all sessions, run `gen --delete-all`
 
 ### Personalisation
 
-You can provide persistent, contextual information about yourself (or the running process) and preferred response styles, at any time, by running `q --config` and answering the prompts. Any information provided will then be implicitly included in all prompts sent to the `Gemini API` from that point on.
+You can provide persistent, contextual information about yourself (or the running process) and preferred response styles, at any time, by running `gen --config` and answering the prompts. Any information provided will then be implicitly included in all prompts sent to the `Gemini API` from that point on.
 
 Any such information you provide is only stored on the host machine and included in calls to the `Gemini API`. It is not stored or transmitted in any other form or for any other purpose, under any circumstances. 
 
@@ -225,12 +225,12 @@ To attach files to your prompt, use the `--files` (or `-f`) parameter passing th
 
 ```bash
 # attach a single file
-q -n --files "holday-fun.png" "what's in this image?"
+gen -n --files "holday-fun.png" "what's in this image?"
 ```
 
 ```bash
 # attach multiple files, spaces are optional but can aid readability when listing many files explicitly. here we use the shorform of --files; -f
-q -n -f "some-code.go, somedir/some-more-code.go, yet-more-code.go" "summarise these files"
+gen -n -f "some-code.go, somedir/some-more-code.go, yet-more-code.go" "summarise these files"
 ```
 
 When attaching a large number of files or the contents of multiple directories, `command substitution` can be used to simplify creating the `files` argument. An example is shown below of including all `*.go` files in the current workspace (that being the working directory and below).
@@ -239,10 +239,10 @@ When attaching a large number of files or the contents of multiple directories, 
 # find all files in the current workspace and concatonate them into a single string
 WORKSPACE="$(find . -name "*.go" | paste -s -d ",")"
 # attach the files to the prompt
-q -n -f "$WORKSPACE" "create a table of file names and a very brief content summary for these files"
+gen -n -f "$WORKSPACE" "create a table of file names and a very brief content summary for these files"
 ```
 
-When run on the `q` repo, the above will produce something similar to the below.
+When run on the `gen` repo, the above will produce something similar to the below.
 
 ```text
  
@@ -267,20 +267,20 @@ main.go                   | The main entry point for the CLI application, parses
 
 ### Grounding
 
-Grounding is the term for verifying LLM responses with an external source, that source being `Google Search` in the case of `q`. By default this feature is enabled, but it can be disabled with the `--no-grounding`flag, as shown below.
+Grounding is the term for verifying LLM responses with an external source, that source being `Google Search` in the case of `gen`. By default this feature is enabled, but it can be disabled with the `--no-grounding`flag, as shown below.
 
 ```bash
-q -n --no-grounding "how do I list all files in my current directory?"
+gen -n --no-grounding "how do I list all files in my current directory?"
 ```
 
 ### Scripting
 
-When using the output of `q` in a script, it is advisable to supress activity indicators and other interactive output using the `--script` flag (or `-s`). This ensures a consistent output stream containing only response data.
+When using the output of `gen` in a script, it is advisable to supress activity indicators and other interactive output using the `--script` flag (or `-s`). This ensures a consistent output stream containing only response data.
 
 The simple example below uses redirection to write the response to a file.
 
 ```bash
-q -n --script "pick a colour of the rainbow" > colour.txt
+gen -n --script "pick a colour of the rainbow" > colour.txt
 ```
 This will result in a file similar to the below
 
@@ -291,17 +291,17 @@ Blue
 
 ### Structured Responses
 
-By default, `q` will request responses structured as free-form text, which is a sensible format for conversational use. However, in many scenarios, particuarly ci and scripting use-cases, it is preferable to have the output in a structured form. To this end, `q` allows you to specify a `schema` that will be used to format the response.
+By default, `gen` will request responses structured as free-form text, which is a sensible format for conversational use. However, in many scenarios, particuarly ci and scripting use-cases, it is preferable to have the output in a structured form. To this end, `gen` allows you to specify a `schema` that will be used to format the response.
 
-There are two methods of specifying a schema, either by using `QSF` (`q`'s `S`chema `F`ormat) or by providing a JSON based `OpenAPI schema object`. 
+There are two methods of specifying a schema, either by using `GSL` (`gen`'s `s`chema `l`anguage) or by providing a JSON based `OpenAPI schema object`. 
 
-In either case, note that `grounding` will be implicitly disabled when using a `schema`, this is a current stipulation of the `Gemini API`, not `q` itself.
+In either case, note that `grounding` will be implicitly disabled when using a `schema`, this is a current stipulation of the `Gemini API`, not `gen` itself.
 
-#### QSF (Q's Schema Format)
+#### GSL (Gen's Schema Language)
 
-`QSF` provides a quick, simple and readable method of defining basic response schemas. It allows the definition of an arbitary number of `fields`, each with a `type` and an optional `description`. `QSF` can only be used to define non-hierarchical schemas, however this is often all that is needed for a substantial amount of structured response use-cases.
+`GSL` provides a quick, simple and readable method of defining basic response schemas. It allows the definition of an arbitary number of `fields`, each with a `type` and an optional `description`. `GSL` can only be used to define non-hierarchical schemas, however this is often all that is needed for a substantial amount of structured response use-cases.
 
-The most basic definition of a `QSF` schema, representing a single field response with no description is shown below
+A basic schema definition in `GSL` format is shown below, it represents a single field response with no description
 
 ```bash
 field-name:type # for example, 'result:integer'
@@ -314,10 +314,10 @@ field-name1:type1:description1|field-name2:type2:description2,...n # for example
 
 Providing a description can be useful for both the LLM and the user in understanding the purpose of the field. It can also reduce the amount of guidance needed in the main prompt itself to ensure response content is correctly assigned.
 
-A simple example of execting `q` with a `QSF` defined schema is shown below.
+A simple example of executing `gen` with a `GSL` defined schema is shown below.
 
 ```bash
-q -n --script --schema='colour:string' "pick a colour of the rainbow"
+gen -n --script --schema='colour:string' "pick a colour of the rainbow"
 ```
 
 This will return a response similar to the following.
@@ -333,7 +333,7 @@ This will return a response similar to the following.
 For more complex schemas, the definition can be provided as an [OpenAPI Schema Object](https://spec.openapis.org/oas/v3.0.3#schema-object-examples). A simple example is shown below.
 
 ```bash
-q -n --script --schema='{"type":"object","properties":{"colour":{"type":"string", "description":"the selected colour"}}}' "pick a colour of the rainbow"
+gen -n --script --schema='{"type":"object","properties":{"colour":{"type":"string", "description":"the selected colour"}}}' "pick a colour of the rainbow"
 ```
 
 This will return a response similar to the following.
@@ -347,27 +347,27 @@ This will return a response similar to the following.
 It may be preferable to store complex `schemas` in a file rather than declaring them inline. Standard `command substitution` techniques can be used to enable this. The example below shows how the same `schema` as defined inline above can instead be read from the file `./schema.json`.
 
 ```bash
-q -n --schema="$(cat ./schema.json)" "pick a colour of the rainbow"
+gen -n --schema="$(cat ./schema.json)" "pick a colour of the rainbow"
 ```
 
 ## Model Configuration 
 
-Using `q` you can set various model configuration options. These include `model version`, `temperature`, `top-p` and `token limits`. An example is shown below.
+Using `gen` you can set various model configuration options. These include `model version`, `temperature`, `top-p` and `token limits`. An example is shown below.
 
 ```bash
-q --model 'custom-gemini-exp-model-123' --temperature 0.1 --top-p 0.1 --max-tokens=1000 "how do I list all files in my current directory?"
+gen --model 'custom-gemini-exp-model-123' --temperature 0.1 --top-p 0.1 --max-tokens=1000 "how do I list all files in my current directory?"
 ```
 
 The effect of the above will be to make the responses more determistic and favour correctness over 'imagination'. 
 
-While the effects of `top-p` and `temperature` are out of the scope of this document, briefly and simplisticly; when the LLM is selecting the next token to include in its response, the value of `top-p` restricts the pool of potential next tokens that can be selected to the most probable subset. This is derived by selecting the most probable, one by one, until the cumulative probabilty exceeds the value of `p`. The `temperature` value is then used to weight the probabilities in that resulting subset to either level them out or emphasise their differences; making it less or more likely that the highest probability candidate will be chosen.
+While the effects of `top-p` and `temperature` are out of the scope of this document, briefly and simplisticly; when the LLM is selecting the next token to include in its response, the value of `top-p` restricts the pool of potential next tokens that can be selected to the most probable subset. This is derived by selecting the most probable, one by one, until the cumulative probabilty of  that selection exceeds the value of `p`. The `temperature` value is then used to weight the probabilities in that resulting subset to either level them out or emphasise their differences; making it less or more likely that the highest probability candidate will be chosen.
 
 ## Reporting on Usage
 
-Running `q` with the `--stats` flag will cause usage data to be written to `stderr`. This allows it be processed seperately from the main response. An example is shown below.
+Running `gen` with the `--stats` flag will cause usage data to be written to `stderr`. This allows it be processed seperately from the main response. An example is shown below.
 
 ```bash
-q -n --stats "what is the weather like next week?"
+gen -n --stats "what is the weather like next week?"
 ```
 
 This will produce output similar to the below
@@ -375,18 +375,13 @@ This will produce output similar to the below
 ```
 The weather will be very hot next week
 
-STATS
-- system-prompt-bytes=619
-- prompt-bytes=35
-- response-bytes=944
-- tokens=955
-- files=0
+{"stats":{"files":"0","promptBytes":"35","responseBytes":"114","systemPromptBytes":"771","tokens":"380"}}
 ```
 
 To redirect the `stats` component to a file, use standard redirection techniques, such as in the below example, where `stderr` is redirected to a local file.
 
 ```bash
-q -n --stats "what is the weather like next week?" 2> stats.txt
+gen -n --stats "what is the weather like next week?" 2> stats.txt
 ```
 
 This will produce output similar to the below
@@ -399,17 +394,12 @@ And the contents of `stats.txt` will be similar to the following.
 
 ```bash
 # file: stats.txt
-STATS
-- system-prompt-bytes=619
-- prompt-bytes=35
-- response-bytes=944
-- tokens=955
-- files=0
+{"stats":{"files":"0","promptBytes":"35","responseBytes":"114","systemPromptBytes":"771","tokens":"380"}}
 ```
 
 ## Debugging
 
-To inspect the underlying Gemini API traffic that is generated by `q`, run it with the `--debug` flag. Other arguments can be passed normally, however, with the `--debug` flag specified the API payloads will also be printed to `stderr`. As the primary responses are written to `stdout` the debug component can easily be separated from the main content, for independent analysis, using standard `redirection` techniques.
+To inspect the underlying Gemini API traffic that is generated by `gen`, run it with the `--debug` flag. Other arguments can be passed normal. With the `--debug` flag specified, the `Gemini API` request and response payloads and other relevant data will be written to `stderr`. This output is in the form of JSON encoded structured logs. As the primary responses are written to `stdout` the debug component can easily be separated from the main content, for independent analysis, using standard `redirection` techniques.
 
 
 
