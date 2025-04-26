@@ -38,6 +38,16 @@ var mimeTypes = map[string]string{
 	".pdf":  "application/pdf",
 }
 
+var (
+	Deps = struct {
+		OS_Stat func(name string) (os.FileInfo, error)
+		OS_Open func(name string) (io.ReadCloser, error)
+	}{
+		OS_Stat: os.Stat,
+		OS_Open: func(name string) (io.ReadCloser, error) { return os.Open(name) },
+	}
+)
+
 func Upload(uploadRequest UploadRequest, debugPrintf func(msg string, args ...any)) (Reference, error) {
 
 	contentType := mimeTypes[filepath.Ext(uploadRequest.File)]
@@ -45,7 +55,7 @@ func Upload(uploadRequest UploadRequest, debugPrintf func(msg string, args ...an
 		contentType = "text/plain"
 	}
 
-	fileInfo, err := os.Stat(uploadRequest.File)
+	fileInfo, err := Deps.OS_Stat(uploadRequest.File)
 	if err != nil {
 		return Reference{}, fmt.Errorf("invalid filepath. '%v' file does not exist. %w", uploadRequest.File, err)
 	}
@@ -84,7 +94,7 @@ func Upload(uploadRequest UploadRequest, debugPrintf func(msg string, args ...an
 		return Reference{}, fmt.Errorf("upload url not found in start-upload response header of 'x-goog-upload-url'")
 	}
 
-	file, err := os.Open(uploadRequest.File)
+	file, err := Deps.OS_Open(uploadRequest.File)
 	if err != nil {
 		return Reference{}, fmt.Errorf("unable to open file '%v' for upload. %w", uploadRequest.File, err)
 	}
@@ -117,12 +127,8 @@ func Upload(uploadRequest UploadRequest, debugPrintf func(msg string, args ...an
 
 	uploadResponse := struct {
 		File struct {
-			Name        string `json:"name"`
 			DisplayName string `json:"displayName"`
 			MimeType    string `json:"mimeType"`
-			SizeBytes   string `json:"sizeBytes"`
-			CreateTime  string `json:"createTime"`
-			UpdateTime  string `json:"updateTime"`
 			URI         string `json:"uri"`
 		} `json:"file"`
 	}{}

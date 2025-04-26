@@ -34,7 +34,7 @@ Using `gen` provides the following features:
 
 To install `gen`, download the appropriate tarball for your `os` from the [releases](https://github.com/comradequinn/gen/releases/) page. Extract the binary and place it somewhere accessible to your `$PATH` variable. 
 
-Optionally, you can use the below script to do that for you.
+Optionally, you can use the below script to do that for you
 
 ```bash
 export VERSION="v1.0.0"; export OS="linux-amd64"; wget "https://github.com/comradequinn/gen/releases/download/${VERSION}/gen-${VERSION}-${OS}.tar.gz" && tar -xf "gen-${VERSION}-${OS}.tar.gz" && rm -f "gen-${VERSION}-${OS}.tar.gz" && chmod +x gen && sudo mv gen /usr/local/bin/
@@ -46,13 +46,15 @@ In order to use `gen` you will require your `Gemini API Key`. If you do not alre
 
 Once you have the key, set and export it as the conventional environment variable for that value, `GEMINI_API_KEY`.
 
-For convenience, you may wish to add this to your `~/.bashrc` file. An example is shown below
+For convenience, you may wish to add this to your `~/.bashrc` file. An example is shown below. 
 
 ```bash
 # file: ~/.bashrc
 
 export GEMINI_API_KEY="myPriVatEApI_keY_1234567890"
 ```
+
+Remember that you will need to open a new terminal or `source` the `~/.bashrc` file for the above to take effect.
 
 ### Removal
 
@@ -236,7 +238,7 @@ gen -n -f "some-code.go, somedir/some-more-code.go, yet-more-code.go" "summarise
 When attaching a large number of files or the contents of multiple directories, `command substitution` can be used to simplify creating the `files` argument. An example is shown below of including all `*.go` files in the current workspace (that being the working directory and below).
 
 ```bash
-# find all files in the current workspace and concatonate them into a single string
+# find all files in the current workspace and concatenate them into a single string
 WORKSPACE="$(find . -name "*.go" | paste -s -d ",")"
 # attach the files to the prompt
 gen -n -f "$WORKSPACE" "create a table of file names and a very brief content summary for these files"
@@ -291,7 +293,7 @@ Blue
 
 ### Structured Responses
 
-By default, `gen` will request responses structured as free-form text, which is a sensible format for conversational use. However, in many scenarios, particuarly ci and scripting use-cases, it is preferable to have the output in a structured form. To this end, `gen` allows you to specify a `schema` that will be used to format the response.
+By default, `gen` will request responses structured as free-form text, which is a sensible format for conversational use. However, in many scenarios, particularly CI and scripting use-cases, it is preferable to have the output in a structured form. To this end, `gen` allows you to specify a `schema` that will be used to format the response.
 
 There are two methods of specifying a schema, either by using `GSL` (`gen`'s `s`chema `l`anguage) or by providing a JSON based `OpenAPI schema object`. 
 
@@ -299,7 +301,7 @@ In either case, note that `grounding` will be implicitly disabled when using a `
 
 #### GSL (Gen's Schema Language)
 
-`GSL` provides a quick, simple and readable method of defining basic response schemas. It allows the definition of an arbitary number of `fields`, each with a `type` and an optional `description`. `GSL` can only be used to define non-hierarchical schemas, however this is often all that is needed for a substantial amount of structured response use-cases.
+`GSL` provides a quick, simple and readable method of defining basic response schemas. It allows the definition of an arbitrary number of `fields`, each with a `type` and an optional `description`. `GSL` can only be used to define non-hierarchical schemas, however this is often all that is needed for a substantial amount of structured response use-cases.
 
 A basic schema definition in `GSL` format is shown below, it represents a single field response with no description
 
@@ -314,18 +316,30 @@ field-name1:type1:description1|field-name2:type2:description2,...n # for example
 
 Providing a description can be useful for both the LLM and the user in understanding the purpose of the field. It can also reduce the amount of guidance needed in the main prompt itself to ensure response content is correctly assigned.
 
+To have the pattern be interpreted as a template for the elements of an array, rather than a singular response item, prefix the definition with `[]`,  as shown below.
+
+```bash
+[]field-name:type # for example, an array of elements, each of the form 'result:integer'...n # 
+```
+
 A simple example of executing `gen` with a `GSL` defined schema is shown below.
 
 ```bash
-gen -n --script --schema='colour:string' "pick a colour of the rainbow"
+gen -n --script --schema='[]colour:string' "list all colours of the rainbow"
 ```
 
 This will return a response similar to the following.
 
 ```json
-{
-  "colour": "Blue"
-}
+[
+  {"colour": "Red"},
+  {"colour": "Orange"},
+  {"colour": "Yellow"},
+  {"colour": "Green"},
+  {"colour": "Blue"},
+  {"colour": "Indigo"},
+  {"colour": "Violet"}
+]
 ```
 
 #### Open API Schema
@@ -358,13 +372,13 @@ Using `gen` you can set various model configuration options. These include `mode
 gen --model 'custom-gemini-exp-model-123' --temperature 0.1 --top-p 0.1 --max-tokens=1000 "how do I list all files in my current directory?"
 ```
 
-The effect of the above will be to make the responses more determistic and favour correctness over 'imagination'. 
+The effect of the above will be to make the responses more deterministic and favour correctness over 'imagination'. 
 
-While the effects of `top-p` and `temperature` are out of the scope of this document, briefly and simplisticly; when the LLM is selecting the next token to include in its response, the value of `top-p` restricts the pool of potential next tokens that can be selected to the most probable subset. This is derived by selecting the most probable, one by one, until the cumulative probabilty of  that selection exceeds the value of `p`. The `temperature` value is then used to weight the probabilities in that resulting subset to either level them out or emphasise their differences; making it less or more likely that the highest probability candidate will be chosen.
+While the effects of `top-p` and `temperature` are out of the scope of this document, briefly and simplistically; when the LLM is selecting the next token to include in its response, the value of `top-p` restricts the pool of potential next tokens that can be selected to the most probable subset. This is derived by selecting the most probable, one by one, until the cumulative probability of  that selection exceeds the value of `p`. The `temperature` value is then used to weight the probabilities in that resulting subset to either level them out or emphasise their differences; making it less or more likely that the highest probability candidate will be chosen.
 
 ## Reporting on Usage
 
-Running `gen` with the `--stats` flag will cause usage data to be written to `stderr`. This allows it be processed seperately from the main response. An example is shown below.
+Running `gen` with the `--stats` flag will cause usage data to be written to `stderr`. This allows it be processed separately from the main response. An example is shown below.
 
 ```bash
 gen -n --stats "what is the weather like next week?"

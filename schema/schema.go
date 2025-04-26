@@ -21,12 +21,22 @@ func Build(definition string) (JSON, error) {
 		return JSON(definition), nil
 	}
 
+	array := strings.HasPrefix(definition, "[]")
+	definition = strings.TrimPrefix(definition, "[]")
+
 	schema := map[string]any{
 		"type":       "object",
 		"properties": map[string]any{},
 	}
 
 	properties := schema["properties"].(map[string]any)
+
+	if array {
+		schema = map[string]any{
+			"type":  "array",
+			"items": schema,
+		}
+	}
 
 	for _, field := range strings.Split(definition, "|") {
 		field = strings.TrimSpace(field)
@@ -52,10 +62,12 @@ func Build(definition string) (JSON, error) {
 			return "", fmt.Errorf("name and type cannot be empty in field definition: '%s'", field)
 		}
 
-		properties[name] = map[string]any{
+		property := map[string]any{
 			"type":        datatype,
 			"description": description,
 		}
+
+		properties[name] = property
 	}
 
 	data, err := json.Marshal(schema)

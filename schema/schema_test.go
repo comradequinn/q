@@ -17,6 +17,11 @@ func TestBuild(t *testing.T) {
 			expected:   `{"properties":{"id":{"description":"User.ID, with some punctation!","type":"integer"}},"type":"object"}`,
 		},
 		{
+			name:       "Single full, valid definition as array",
+			definition: "[]id:integer:User.ID, with some punctation!",
+			expected:   `{"items":{"properties":{"id":{"description":"User.ID, with some punctation!","type":"integer"}},"type":"object"},"type":"array"}`,
+		},
+		{
 			name:       "Multiple full, valid definitions",
 			definition: "id:integer:User ID|name:string:User name|email:string:User email address",
 			expected:   `{"properties":{"email":{"description":"User email address","type":"string"},"id":{"description":"User ID","type":"integer"},"name":{"description":"User name","type":"string"}},"type":"object"}`,

@@ -27,7 +27,10 @@ var (
 )
 
 func main() {
-	printfFatal := func(format string, v ...any) {
+	checkFatalf := func(condition bool, format string, v ...any) {
+		if !condition {
+			return
+		}
 		fmt.Printf(format+"\n", v...)
 		os.Exit(1)
 	}
@@ -81,9 +84,7 @@ func main() {
 	scriptMode := *script || *scriptShort
 
 	config, err := cfg.Read(*appDir)
-	if err != nil {
-		printfFatal("unable to read config. %v", err)
-	}
+	checkFatalf(err != nil, "unable to read config. %v", err)
 
 	{ // non-prompt commands
 		switch {
@@ -98,34 +99,24 @@ func main() {
 			session.Stash(*appDir)
 		case *restoreSession > 0 || *restoreSessionShort > 0:
 			sessionID := *restoreSession + *restoreSessionShort
-			if err := session.Restore(*appDir, sessionID); err != nil {
-				printfFatal("unable to restore session. %v", err)
-			}
+			checkFatalf(session.Restore(*appDir, sessionID) != nil, "unable to restore session. %v", err)
 			os.Exit(0)
 		case *deleteSession > 0 || *deleteSessionShort > 0:
 			sessionID := *deleteSession + *deleteSessionShort
-			if err := session.Delete(*appDir, sessionID); err != nil {
-				printfFatal("unable to delete session. %v", err)
-			}
+			checkFatalf(session.Delete(*appDir, sessionID) != nil, "unable to delete session. %v", err)
 			os.Exit(0)
 		case *deleteAllSessions:
-			if err := session.DeleteAll(*appDir); err != nil {
-				printfFatal("unable to delete sessions. %v", err)
-			}
+			checkFatalf(session.DeleteAll(*appDir) != nil, "unable to delete sessions. %v", err)
 			os.Exit(0)
 		case *listSessions || *listSessionsShort:
 			records, err := session.List(*appDir)
-			if err != nil {
-				printfFatal("unable to list history. %v", err)
-			}
+			checkFatalf(err != nil, "unable to list history. %v", err)
 			cli.ListSessions(records)
 			os.Exit(0)
 		}
 	}
 
-	if len(flag.Args()) != 1 {
-		printfFatal("a single prompt is required")
-	}
+	checkFatalf(len(flag.Args()) != 1, "a single prompt is required")
 	prompt := flag.Arg(0)
 
 	var stopSpinner = func() {}
@@ -136,14 +127,10 @@ func main() {
 	}
 
 	schema, err := schema.Build(*schemaDefinition)
-	if err != nil {
-		printfFatal("invalid schema definition. %v", err)
-	}
+	checkFatalf(err != nil, "invalid schema definition. %v", err)
 
 	messages, err := session.Read(*appDir)
-	if err != nil {
-		printfFatal("unable to read history. %v", err)
-	}
+	checkFatalf(err != nil, "unable to read history. %v", err)
 
 	useModel := *model
 	{
@@ -191,24 +178,20 @@ func main() {
 			Grounding: !*disableGrounding,
 		})
 
-	if err != nil {
-		printfFatal("error with llm api. %v", err)
-	}
+	checkFatalf(err != nil, "error with llm api. %v", err)
 
-	if err := session.Write(*appDir, session.Entry{
+	checkFatalf(session.Write(*appDir, session.Entry{
 		Prompt:   prompt,
 		Response: rs.Text,
 		Files:    rs.Files,
-	}); err != nil {
-		printfFatal("unable to update session. %v", err)
-	}
+	}) != nil, "unable to update session. %v", err)
 
 	stopSpinner()
 
 	fmt.Printf("%v\n\n", rs.Text)
 
 	if *stats {
-		json.NewEncoder(os.Stderr).Encode(map[string]map[string]string{
+		_ = json.NewEncoder(os.Stderr).Encode(map[string]map[string]string{
 			"stats": {
 				"systemPromptBytes": fmt.Sprintf("%v", len(*systemPrompt)),
 				"promptBytes":       fmt.Sprintf("%v", len(prompt)),
