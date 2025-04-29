@@ -84,13 +84,6 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 
 	systemPrompt := strings.Builder{}
 	systemPrompt.WriteString(cfg.SystemPrompt + ". ")
-	systemPrompt.WriteString(`Your responses are printed to a linux terminal. 
-		You will ensure those responses are concise and easily rendered in a linux terminal.
-		You will not use markdown syntax in your responses as this is not rendered well in terminal output. 
-		However you may use clear, plain text formatting that can be read easily and immediately by a human, such as using dashes for list delimiters. 
-		All answers should be factually correct and you should take caution regarding hallucinations. 
-		You should only answer the specific question given; do not proactively include additional information that is not directly relevant to the question. 
-		`)
 	systemPrompt.WriteString(fmt.Sprintf("Your responses must not exceed %v words in length. ", float64(cfg.MaxTokens)*0.75)) // rough mapping of tokens to words
 
 	defineAttribute := func(key string, val any, unset any) string {
@@ -186,7 +179,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 	}
 
 	url := fmt.Sprintf(cfg.APIURL, cfg.Model, cfg.APIKey)
-	cfg.DebugPrintf("sending generate request", "type", "generate_request", "url", url, "request", request.Bytes())
+	cfg.DebugPrintf("sending generate request", "type", "generate_request", "url", url, "request", string(request.Bytes()))
 
 	rs, err := http.Post(url, "application/json", &request)
 

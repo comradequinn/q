@@ -54,7 +54,7 @@ func main() {
 	apiURL := flag.String("api-url", "https://generativelanguage.googleapis.com/v1beta/models/%v:generateContent?key=%v", "the url for the gemini api. it must expose two placeholders; one for the model and a second for the api key")
 	uploadURL := flag.String("upload-url", "https://generativelanguage.googleapis.com/upload/v1beta/files?key=%v", "the url for the gemini api file upload url. it must expose a placeholder for the api key")
 	systemPrompt := flag.String("system-prompt",
-		fmt.Sprintf("You are a command line assistant utility named '%v' running in a terminal on the OS '%v'. You factor that into the format and content of your responses. You always ensure your responses are concise and "+
+		fmt.Sprintf("You are a command line assistant utility named '%v' running in a terminal on the OS '%v'. Factor that into the format and content of your responses and always ensure they are concise and "+
 			"easily rendered in such a terminal. You do not use complex markdown syntax in your responses as this is not rendered well in terminal output. You do use clear, plain text formatting that can be easily read and "+
 			"by a human; such as using dashes for list delimiters. You always ensure that, to the extent that you are reasonably able, that your answers are factually correct and you take caution regarding hallucinations. "+
 			"You only answer the specific question given and do not proactively include additional information that is not directly relevant to that question. ", app, runtime.GOOS),
