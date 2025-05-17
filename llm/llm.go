@@ -24,6 +24,7 @@ type (
 		Temperature   float64
 		TopP          float64
 		User          User
+		Grounding     bool
 		DebugPrintf   func(msg string, args ...any)
 	}
 	User struct {
@@ -32,11 +33,10 @@ type (
 		Description string
 	}
 	Prompt struct {
-		History   []Message
-		Text      string
-		Files     []string
-		Schema    string
-		Grounding bool
+		History []Message
+		Text    string
+		Files   []string
+		Schema  string
 	}
 	FileReference struct {
 		URI      string `json:"uri"`
@@ -77,9 +77,9 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 		return Response{}, fmt.Errorf("invalid prompt. model, maxtokens and temperature must be specified")
 	}
 
-	if prompt.Schema != "" && prompt.Grounding {
+	if prompt.Schema != "" && cfg.Grounding {
 		cfg.DebugPrintf("grounding was specified but silently disabled due to the specification of a schema. the gemini api will not currently perform grounding for prompts requiring a structured response")
-		prompt.Grounding = false
+		cfg.Grounding = false
 	}
 
 	systemPrompt := strings.Builder{}
@@ -147,7 +147,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 
 	tools := []schema.Tool{}
 
-	if prompt.Grounding {
+	if cfg.Grounding {
 		tools = []schema.Tool{
 			{GoogleSearch: &schema.GoogleSearch{}},
 		}
@@ -179,7 +179,7 @@ func Generate(cfg Config, prompt Prompt) (Response, error) {
 	}
 
 	url := fmt.Sprintf(cfg.APIURL, cfg.Model, cfg.APIKey)
-	cfg.DebugPrintf("sending generate request", "type", "generate_request", "url", url, "request", string(request.Bytes()))
+	cfg.DebugPrintf("sending generate request", "type", "generate_request", "url", url, "request", request.String())
 
 	rs, err := http.Post(url, "application/json", &request)
 

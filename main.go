@@ -163,6 +163,7 @@ func main() {
 			MaxTokens:     *maxTokens,
 			Temperature:   *temperature,
 			TopP:          *topP,
+			Grounding:     !*disableGrounding,
 			User: llm.User{
 				Name:        config.User.Name,
 				Location:    config.User.Location,
@@ -171,11 +172,10 @@ func main() {
 			DebugPrintf: slog.Debug,
 		},
 		llm.Prompt{
-			Text:      prompt,
-			Files:     files,
-			History:   messages,
-			Schema:    schema,
-			Grounding: !*disableGrounding,
+			Text:    prompt,
+			Files:   files,
+			History: messages,
+			Schema:  schema,
 		})
 
 	checkFatalf(err != nil, "error with llm api. %v", err)

@@ -110,6 +110,7 @@ func TestLLM(t *testing.T) {
 		MaxTokens:     1000,
 		Temperature:   1.0,
 		TopP:          1.0,
+		Grounding:     true,
 		User: llm.User{
 			Name:        "test-name",
 			Location:    "test-location",
@@ -119,8 +120,7 @@ func TestLLM(t *testing.T) {
 	}
 
 	prompt := llm.Prompt{
-		Text:      "test prompt",
-		Grounding: true,
+		Text: "test prompt",
 		History: []llm.Message{
 			{
 				Role: llm.RoleUser,
@@ -148,7 +148,7 @@ func TestLLM(t *testing.T) {
 		assert(t, actualRq.GenerationConfig.Temperature == cfg.Temperature, "expected temperature to be %v. got %v", cfg.Temperature, actualRq.GenerationConfig.Temperature)
 		assert(t, actualRq.GenerationConfig.TopP == cfg.TopP, "expected top-p to be %v. got %v", cfg.TopP, actualRq.GenerationConfig.TopP)
 
-		if prompt.Grounding {
+		if cfg.Grounding {
 			assert(t, len(actualRq.Tools) == 1 && actualRq.Tools[0].GoogleSearch != nil, "expected 1 tool of type google-search to be specified when grounding enabled. got %v", len(actualRq.Tools))
 		} else {
 			assert(t, len(actualRq.Tools) == 0, "expected 0 tools to be specified when grounding disabled. got %v", len(actualRq.Tools))
@@ -187,7 +187,7 @@ func TestLLM(t *testing.T) {
 
 	assertResponse(t, rs, err)
 
-	prompt.Grounding = false
+	cfg.Grounding = false
 	prompt.Schema = `{"type":"object","properties":{"response":{"type":"string"}}}`
 
 	rs, err = llm.Generate(cfg, prompt)

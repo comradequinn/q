@@ -111,12 +111,12 @@ func List(appDir string) ([]Record, error) {
 
 		messages := []llm.Message{}
 
-		if err := json.NewDecoder(sessionFile).Decode(&messages); err != nil {
+		if err := json.NewDecoder(sessionFile).Decode(&messages); err != nil && err != io.EOF {
 			return "", fmt.Errorf("unable to decode session file. %v %v", sessionFile, err)
 		}
 
 		if len(messages) == 0 {
-			return "no content", nil
+			return "[ no content ]", nil
 		}
 
 		const limit = 50

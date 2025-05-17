@@ -52,7 +52,6 @@ func activeSessionFilePath(appDir string) (string, bool, error) {
 }
 
 func openActiveSessionFile(appDir string, flag int) (*os.File, error) {
-
 	sessionDir, err := sessionDir(appDir)
 	if err != nil {
 		return nil, err
